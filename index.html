@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <script>
+      let lastError = null;
+      function showError(msg, stack) {
+        if (document.body) {
+          document.body.innerHTML = '<div style="padding: 20px; background: #f8d7da; color: #721c24; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 999999; overflow: auto;"><h3>Erro Capturado:</h3><pre>' + stack + '</pre><p>' + msg + '</p></div>';
+        } else {
+          lastError = { msg, stack };
+          window.addEventListener('DOMContentLoaded', () => {
+             document.body.innerHTML = '<div style="padding: 20px; background: #f8d7da; color: #721c24; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 999999; overflow: auto;"><h3>Erro Capturado:</h3><pre>' + lastError.stack + '</pre><p>' + lastError.msg + '</p></div>';
+          });
+        }
+      }
+      window.addEventListener('error', function(event) {
+        showError(event.message, event.error?.stack || '');
+      });
+      window.addEventListener('unhandledrejection', function(event) {
+        showError(event.reason, event.reason?.stack || '');
+      });
+    </script>
+    <link rel="icon" type="image/png" href="/pwa-192x192.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ChatDesk - Painel de Atendimento</title>
+    <!-- Google Fonts — Premium Design System -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <meta name="description" content="ChatDesk — Painel de Atendimento Omnichannel moderno e inteligente">
+    <!-- ChartJS for reports -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- Audio Alert Notification -->
+    <audio id="notification-sound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-200.wav" preload="auto"></audio>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
