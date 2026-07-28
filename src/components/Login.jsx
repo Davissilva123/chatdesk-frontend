@@ -9,6 +9,38 @@ export default function Login({ onLoginSuccess, onGoToRegister }) {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  // Handle Login submission
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const supabase = getSupabase();
+    if (!supabase) {
+      showToast('Por favor, configure as credenciais do Supabase no painel superior.', 'error');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) {
+        showToast('Falha no login: ' + error.message, 'error');
+      } else {
+        showToast('Login realizado com sucesso!', 'success');
+        if (onLoginSuccess) onLoginSuccess();
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Erro interno ao tentar fazer login.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div style={{
       background: 'radial-gradient(circle at 50% 50%, #151820 0%, #0d0f14 100%)',
