@@ -395,6 +395,26 @@ export default function SuperAdminView({ isStandalone=false }) {
   const [newPlan, setNewPlan] = useState({ name:"",price:0,max_agents:3,max_messages:1000 });
   const [newCoupon, setNewCoupon] = useState({ code:"",discount_type:"percent",discount_value:0,expires_at:"",max_uses:100,description:"" });
 
+  // ── SERVER CONNECTION ─────────────────────────────────
+  const [supabaseUrl, setSupabaseUrl] = useState(localStorage.getItem('SUPABASE_URL') || '');
+  const [supabaseKey, setSupabaseKey] = useState(localStorage.getItem('SUPABASE_ANON_KEY') || '');
+  const [waUrl, setWaUrl] = useState(localStorage.getItem('WA_API_URL') || '');
+  const [waKey, setWaKey] = useState(localStorage.getItem('WA_API_KEY') || '');
+
+  const handleSaveConnectionSettings = (e) => {
+    e.preventDefault();
+    localStorage.setItem('SUPABASE_URL', supabaseUrl.trim());
+    localStorage.setItem('SUPABASE_ANON_KEY', supabaseKey.trim());
+    localStorage.setItem('WA_API_URL', waUrl.trim());
+    localStorage.setItem('WA_API_KEY', waKey.trim());
+    
+    showToast('Configurações salvas! Recarregando sistema...', 'success');
+    
+    setTimeout(() => {
+      window.location.reload();
+    }, 1000);
+  };
+
   // ── MODAL ─────────────────────────────────────────────
   const [confirmModal, setConfirmModal] = useState({ isOpen:false });
   const showConfirm = (opts) => setConfirmModal({ isOpen:true,...opts });
@@ -1950,6 +1970,54 @@ export default function SuperAdminView({ isStandalone=false }) {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Server Connection */}
+            <div style={{ background:"var(--bg-secondary)",border:"1px solid var(--border)",borderRadius:"16px",padding:"22px",marginBottom:"24px" }}>
+              <div style={{ display:"flex",alignItems:"center",gap:"14px",marginBottom:"16px" }}>
+                <div style={{ width:"44px",height:"44px",borderRadius:"12px",background:"rgba(16,185,129,.1)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--success)" }}><Server size={22}/></div>
+                <div>
+                  <h3 style={{ margin:0,fontSize:"16px",fontWeight:800,color:"var(--text-primary)" }}>Conexão do Servidor</h3>
+                  <p style={{ margin:"4px 0 0",fontSize:"13px",color:"var(--text-muted)" }}>Defina a conexão com banco e API do WhatsApp.</p>
+                </div>
+              </div>
+              <form onSubmit={handleSaveConnectionSettings} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:"16px" }}>
+                  <div>
+                    <label style={{ display:"block",fontSize:"11px",fontWeight:700,color:"var(--text-muted)",textTransform:"uppercase",marginBottom:"8px" }}>Supabase URL</label>
+                    <div style={{ position:"relative",display:"flex",alignItems:"center" }}>
+                      <Database size={14} style={{ position:"absolute",left:"12px",color:"var(--text-muted)",zIndex:2 }} />
+                      <input type="url" value={supabaseUrl} onChange={(e) => setSupabaseUrl(e.target.value)} placeholder="https://suaprojeto.supabase.co" required className="sa-input" style={{ width:"100%",padding:"10px 12px 10px 34px",borderRadius:"9px",border:"1px solid var(--border)",background:"var(--bg-primary)",color:"var(--text-primary)",fontSize:"13px",boxSizing:"border-box" }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ display:"block",fontSize:"11px",fontWeight:700,color:"var(--text-muted)",textTransform:"uppercase",marginBottom:"8px" }}>Supabase Anon Key</label>
+                    <div style={{ position:"relative",display:"flex",alignItems:"center" }}>
+                      <Key size={14} style={{ position:"absolute",left:"12px",color:"var(--text-muted)",zIndex:2 }} />
+                      <input type="text" value={supabaseKey} onChange={(e) => setSupabaseKey(e.target.value)} placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI..." required className="sa-input" style={{ width:"100%",padding:"10px 12px 10px 34px",borderRadius:"9px",border:"1px solid var(--border)",background:"var(--bg-primary)",color:"var(--text-primary)",fontSize:"13px",boxSizing:"border-box" }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ display:"block",fontSize:"11px",fontWeight:700,color:"var(--text-muted)",textTransform:"uppercase",marginBottom:"8px" }}>WhatsApp API URL</label>
+                    <div style={{ position:"relative",display:"flex",alignItems:"center" }}>
+                      <Globe size={14} style={{ position:"absolute",left:"12px",color:"var(--text-muted)",zIndex:2 }} />
+                      <input type="url" value={waUrl} onChange={(e) => setWaUrl(e.target.value)} placeholder="https://api-wa.suaempresa.com" required className="sa-input" style={{ width:"100%",padding:"10px 12px 10px 34px",borderRadius:"9px",border:"1px solid var(--border)",background:"var(--bg-primary)",color:"var(--text-primary)",fontSize:"13px",boxSizing:"border-box" }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ display:"block",fontSize:"11px",fontWeight:700,color:"var(--text-muted)",textTransform:"uppercase",marginBottom:"8px" }}>WhatsApp API Key</label>
+                    <div style={{ position:"relative",display:"flex",alignItems:"center" }}>
+                      <Key size={14} style={{ position:"absolute",left:"12px",color:"var(--text-muted)",zIndex:2 }} />
+                      <input type="password" value={waKey} onChange={(e) => setWaKey(e.target.value)} placeholder="Chave secreta de acesso à API" required className="sa-input" style={{ width:"100%",padding:"10px 12px 10px 34px",borderRadius:"9px",border:"1px solid var(--border)",background:"var(--bg-primary)",color:"var(--text-primary)",fontSize:"13px",boxSizing:"border-box" }} />
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+                  <button type="submit" className="sa-btn" style={{ padding:"10px 24px",borderRadius:"9px",border:"none",background:"linear-gradient(135deg,#10b981,#059669)",color:"white",fontWeight:700,fontSize:"13px",display:"flex",alignItems:"center",gap:"8px" }}>
+                    <Save size={14}/> Salvar Conexão
+                  </button>
+                </div>
+              </form>
             </div>
 
             {/* Settings */}
