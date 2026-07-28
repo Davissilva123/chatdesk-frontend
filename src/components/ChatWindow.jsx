@@ -183,7 +183,7 @@ export default function ChatWindow() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `conversation_id=eq.${activeConversation.id}` }, () => {
         loadMessages();
       }).subscribe();
-    return () => supabase.removeChannel(channel);
+    return () => { supabase.removeChannel(channel); };
   }, [activeConversation, loadMessages]);
 
   // ── Client typing ─────────────────────────────────────────────────

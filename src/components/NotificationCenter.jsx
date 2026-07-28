@@ -95,7 +95,7 @@ export default function NotificationCenter({ onNavigateToConversation }) {
         })
       .subscribe();
 
-    return () => supabase.removeChannel(channel);
+    return () => { supabase.removeChannel(channel); };
   }, [currentAgent?.id]);
 
   // Also listen to local notifications injected by app context
