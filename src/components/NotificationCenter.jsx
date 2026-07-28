@@ -198,10 +198,12 @@ export default function NotificationCenter({ onNavigateToConversation }) {
           {/* List */}
           <div style={{ overflowY: 'auto', flex: 1 }}>
             {displayNotifs.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-muted)' }}>
-                <Bell size={28} style={{ opacity: 0.2, marginBottom: '12px', display: 'block', margin: '0 auto 12px' }} />
-                <div style={{ fontSize: '13px' }}>Nenhuma notificação</div>
-                <div style={{ fontSize: '11px', marginTop: '4px' }}>Você está em dia! ✅</div>
+              <div style={{ textAlign: 'center', padding: '64px 20px', color: 'var(--text-primary)', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', margin: '16px' }}>
+                <div style={{ background: 'var(--accent-soft)', width: '48px', height: '48px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                  <Bell size={24} style={{ color: 'var(--accent)' }} />
+                </div>
+                <div style={{ fontSize: '15px', fontWeight: 600 }}>Nenhuma notificação</div>
+                <div style={{ fontSize: '13px', marginTop: '8px', color: 'var(--text-secondary)' }}>Você está em dia com os atendimentos! ✅</div>
               </div>
             ) : (
               displayNotifs.map(n => (

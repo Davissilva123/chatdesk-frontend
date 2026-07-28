@@ -626,6 +626,15 @@ export default function ChatWindow() {
   // ────────────────────────────────────────────────────────────────
   // RENDER
   // ────────────────────────────────────────────────────────────────
+  if (!activeConversation) {
+    return (
+      <section id="chat-window" className="column-col3" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: 'var(--text-muted)' }}>
+        <MessageSquare size={48} style={{ opacity: 0.2, marginBottom: '16px' }} />
+        <p>Selecione uma conversa para iniciar o atendimento</p>
+      </section>
+    );
+  }
+
   return (
     <section
       id="chat-window"

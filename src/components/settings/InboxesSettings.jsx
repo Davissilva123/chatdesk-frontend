@@ -228,8 +228,14 @@ export default function InboxesSettings() {
         }, 3000);
       } catch (err) {
         console.error(err);
-        setQrStatusText('Falha ao iniciar conexão: ' + err.message);
-        showToast('Falha na inicialização: ' + err.message, 'error');
+        
+        let errorMsg = err.message;
+        if (errorMsg.includes('NetworkError') || errorMsg.includes('Failed to fetch')) {
+          errorMsg = 'Erro de Rede. A API do WhatsApp está configurada corretamente em Configurações > Geral? (Lembre-se: Vercel bloqueia localhost)';
+        }
+
+        setQrStatusText('Falha ao iniciar conexão: ' + errorMsg);
+        showToast('Falha na inicialização: ' + errorMsg, 'error');
       }
     }
 

@@ -41,4 +41,22 @@ createRoot(document.getElementById('root')).render(
       <App />
     </ErrorBoundary>
   </StrictMode>,
-)
+);
+
+// FORÇAR LIMPEZA DO CACHE (PWA) PARA ESTA ATUALIZAÇÃO
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(function(registrations) {
+    let unreg = false;
+    for (let registration of registrations) {
+      registration.unregister();
+      unreg = true;
+    }
+    if (unreg) {
+      // Set a flag to prevent infinite reloads
+      if (!sessionStorage.getItem('cacheBusted_v1')) {
+        sessionStorage.setItem('cacheBusted_v1', 'true');
+        window.location.reload(true);
+      }
+    }
+  });
+}
