@@ -54,7 +54,7 @@ export default function EmojiPicker({ onSelect, onClose }) {
   return (
     <div style={{
       position: 'absolute', bottom: 'calc(100% + 8px)', left: 0,
-      width: '320px', background: 'rgba(6,8,18,0.98)', backdropFilter: 'blur(40px)',
+      width: '320px', background: 'var(--bg-elevated)', backdropFilter: 'blur(40px)',
       border: '1px solid var(--border)', borderRadius: 'var(--radius-md)',
       boxShadow: 'var(--shadow-lg)', overflow: 'hidden',
       animation: 'slideDown 150ms cubic-bezier(0.34, 1.56, 0.64, 1)',

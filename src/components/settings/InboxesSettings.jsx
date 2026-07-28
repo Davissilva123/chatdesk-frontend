@@ -125,7 +125,11 @@ export default function InboxesSettings() {
       fetchInboxes();
     } catch (err) {
       console.error(err);
-      showToast('Erro ao excluir: ' + err.message, 'error');
+      if (err.message && err.message.includes('campaigns_inbox_id_fkey')) {
+        showToast('Não é possível excluir: Esta caixa está vinculada a uma ou mais Campanhas.', 'error');
+      } else {
+        showToast('Erro ao excluir: ' + err.message, 'error');
+      }
     }
   };
 

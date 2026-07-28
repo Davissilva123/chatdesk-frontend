@@ -872,7 +872,7 @@ export default function SuperAdminView({ isStandalone=false }) {
       <CreateCompanyModal isOpen={showCreateCompanyModal} onClose={()=>setShowCreateCompanyModal(false)} onSubmit={handleCreateCompany} saasPlans={saasPlans}/>
 
       {/* ═══════ SIDEBAR ═══════ */}
-      <aside style={{ width:isSidebarCollapsed?"64px":"240px",minWidth:isSidebarCollapsed?"64px":"240px",display:"flex",flexDirection:"column",borderRight:"1px solid var(--border)",background:"linear-gradient(180deg,rgba(10,13,26,.98) 0%,rgba(6,8,16,.99) 100%)",transition:"width .3s cubic-bezier(.4,0,.2,1),min-width .3s cubic-bezier(.4,0,.2,1)",overflow:"hidden" }}>
+      <aside style={{ width:isSidebarCollapsed?"64px":"240px",minWidth:isSidebarCollapsed?"64px":"240px",display:"flex",flexDirection:"column",borderRight:"1px solid var(--border)",background:"var(--grad-sidebar)",transition:"width .3s cubic-bezier(.4,0,.2,1),min-width .3s cubic-bezier(.4,0,.2,1)",overflow:"hidden" }}>
         {/* Logo */}
         <div style={{ padding:isSidebarCollapsed?"20px 0":"18px 14px",borderBottom:"1px solid rgba(255,255,255,.04)",display:"flex",alignItems:"center",justifyContent:isSidebarCollapsed?"center":"space-between",flexShrink:0,gap:"8px" }}>
           {!isSidebarCollapsed&&(

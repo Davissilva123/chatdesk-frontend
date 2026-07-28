@@ -301,7 +301,13 @@ export default function ContactPanel() {
         </button>
       </div>
 
-      {/* Tabs Header */}
+      {!activeConversation ? (
+        <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>
+          Nenhuma conversa ativa
+        </div>
+      ) : (
+        <>
+          {/* Tabs Header */}
       <div 
         className="col4-tabs" 
         style={{ 
@@ -819,6 +825,8 @@ export default function ContactPanel() {
             </form>
           </div>
         </div>
+      )}
+      </>
       )}
     </aside>
   );

@@ -165,7 +165,7 @@ export default function NotificationCenter({ onNavigateToConversation }) {
         <div style={{
           position: 'absolute', left: '48px', bottom: '0',
           width: '320px', maxHeight: '480px',
-          background: 'rgba(6, 8, 18, 0.98)', backdropFilter: 'blur(40px)',
+          background: 'var(--bg-elevated)', backdropFilter: 'blur(40px)',
           border: '1px solid var(--border)', borderRadius: 'var(--radius-md)',
           boxShadow: 'var(--shadow-lg)',
           display: 'flex', flexDirection: 'column',

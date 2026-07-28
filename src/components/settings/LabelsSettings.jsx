@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useApp } from '../../AppContext';
 import { getSupabase } from '../../supabase';
 import { showToast } from '../../utils';
 import { Plus, Pencil, Trash2, X } from 'lucide-react';
 
 export default function LabelsSettings() {
+  const { currentAgent } = useApp();
   const [labels, setLabels] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -18,13 +20,14 @@ export default function LabelsSettings() {
 
   const fetchLabels = async () => {
     const supabase = getSupabase();
-    if (!supabase) return;
+    if (!supabase || !currentAgent) return;
 
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from('labels')
         .select('*')
+        .eq('company_id', currentAgent.company_id)
         .order('name', { ascending: true });
 
       if (error) throw error;
@@ -38,8 +41,8 @@ export default function LabelsSettings() {
   };
 
   useEffect(() => {
-    fetchLabels();
-  }, []);
+    if (currentAgent) fetchLabels();
+  }, [currentAgent]);
 
   const handleOpenCreateModal = () => {
     setName('');
@@ -90,6 +93,7 @@ export default function LabelsSettings() {
         const { error } = await supabase
           .from('labels')
           .insert({
+            company_id: currentAgent?.company_id,
             name: name.trim(),
             color
           });
