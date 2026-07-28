@@ -139,7 +139,7 @@ export default function Login({ onLoginSuccess, onGoToRegister }) {
               onClick={onGoToRegister}
               style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontWeight: 600, padding: 0 }}
             >
-              Crie uma conta corporativa
+              Crie uma conta
             </button>
           </p>
         </div>
