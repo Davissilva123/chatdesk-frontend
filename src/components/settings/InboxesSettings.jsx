@@ -7,9 +7,11 @@ import {
   getConnectionStatus 
 } from '../../whatsapp';
 import { showToast } from '../../utils';
+import { useApp } from '../../AppContext';
 import { Plus, Sliders, Trash2, X, Copy, Check, Eye } from 'lucide-react';
 
 export default function InboxesSettings() {
+  const { currentAgent } = useApp();
   const [inboxes, setInboxes] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -81,7 +83,8 @@ export default function InboxesSettings() {
           channel_type: 'whatsapp',
           phone_number: newInboxPhone.trim().replace(/\D/g, ''),
           wa_session_id: newInboxSessionId.trim(),
-          is_connected: false
+          is_connected: false,
+          company_id: currentAgent?.company_id || null
         });
 
       if (error) throw error;
