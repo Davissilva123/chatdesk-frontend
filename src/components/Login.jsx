@@ -43,7 +43,7 @@ export default function Login({ onLoginSuccess, onGoToRegister }) {
 
   return (
     <div style={{
-      background: 'radial-gradient(circle at 50% 50%, #151820 0%, #0d0f14 100%)',
+      background: 'var(--bg-primary)',
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center',
