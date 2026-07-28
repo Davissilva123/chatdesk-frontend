@@ -106,6 +106,15 @@ export default function InboxesSettings() {
     if (!supabase) return;
 
     try {
+      // Primeiro, tenta excluir campanhas associadas para evitar erro de Foreign Key
+      try {
+        await supabase.from('campaigns').delete().eq('inbox_id', inbox.id);
+      } catch (e) {
+        console.warn('Erro ao excluir campanhas vinculadas:', e);
+      }
+
+      showToast('Excluindo caixa de entrada e configurações...', 'info');
+
       if (inbox.wa_session_id) {
         try {
           await disconnectWaSession(inbox.wa_session_id);
@@ -121,7 +130,7 @@ export default function InboxesSettings() {
 
       if (error) throw error;
 
-      showToast('Caixa excluída!', 'success');
+      showToast('Caixa e campanhas associadas excluídas!', 'success');
       fetchInboxes();
     } catch (err) {
       console.error(err);
