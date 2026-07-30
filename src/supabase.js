@@ -17,13 +17,7 @@ export function initSupabase() {
     localStorage.setItem('SUPABASE_ANON_KEY', key);
   }
   
-  // Garantir também valor padrão para API do Whatsapp
-  if (!localStorage.getItem('WA_API_URL') || localStorage.getItem('WA_API_URL') === 'http://localhost:3001') {
-    localStorage.setItem('WA_API_URL', 'http://localhost:3009');
-  }
-  if (!localStorage.getItem('WA_API_KEY')) {
-    localStorage.setItem('WA_API_KEY', '251406');
-  }
+
 
   if (url && key) {
     try {
@@ -214,7 +208,7 @@ export async function getMessages(conversationId) {
 }
 
 // Enviar mensagem como agente
-export async function sendAgentMessage({ conversationId, content, messageType = 'text', mediaUrl = null, agentId = null, metadata = null }) {
+export async function sendAgentMessage({ conversationId, content, messageType = 'text', mediaUrl = null, agentId = null, metadata = null, companyId = null }) {
   const client = getSupabase();
   if (!client) throw new Error('Supabase não configurado');
 
@@ -227,6 +221,10 @@ export async function sendAgentMessage({ conversationId, content, messageType = 
     media_url: mediaUrl,
     status: 'sent'
   };
+
+  if (companyId) {
+    insertPayload.company_id = companyId;
+  }
 
   // Only include metadata if provided (backwards compatible)
   if (metadata) {
@@ -466,4 +464,23 @@ export async function uploadFileToSupabase(file) {
     filename: file.name,
     mimeType: file.type
   };
+}
+
+// ── Audit Logs Helper ──────────────────────────────────────────────
+export async function logAuditAction(action, metadata = {}, entity_id = null) {
+  const agent = await getCurrentAgent();
+  if (!agent) return;
+  const supabase = getSupabase();
+  if (!supabase) return;
+  
+  try {
+    await supabase.from('audit_logs').insert([{
+      agent_id: agent.id,
+      action: action,
+      entity_id: entity_id,
+      metadata: metadata
+    }]);
+  } catch (err) {
+    console.error('Failed to log audit action', err);
+  }
 }

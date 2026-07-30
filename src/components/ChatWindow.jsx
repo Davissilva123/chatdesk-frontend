@@ -8,7 +8,8 @@ import {
   getSupabase,
   resetUnreadCount,
   updateMessage,
-  deleteMessage
+  deleteMessage,
+  logAuditAction
 } from '../supabase';
 import { sendWaMessage } from '../whatsapp';
 import { formatTime, showToast, formatMessageText } from '../utils';
@@ -17,7 +18,7 @@ import {
   Smile, Paperclip, Send, Sparkles, FileText, AlertCircle,
   MessageSquare, AlertTriangle, ArrowRightLeft, Upload, Reply,
   X, AtSign, Search, Mic, MicOff, Edit3, Trash2, CheckCheck,
-  LayoutTemplate, Clock, ChevronUp, ChevronDown
+  LayoutTemplate, Clock, ChevronUp, ChevronDown, Zap
 } from 'lucide-react';
 import TransferModal from './modals/TransferModal';
 import EmojiPicker from './EmojiPicker';
@@ -37,13 +38,16 @@ function renderWithMentions(html) {
 }
 
 // ─── SLA calculation ──────────────────────────────────────────────
-function getSlaInfo(conv) {
+function getSlaInfo(conv, policy) {
   if (!conv?.created_at) return null;
   const diffMins = Math.floor((Date.now() - new Date(conv.created_at)) / 60000);
   const h = Math.floor(diffMins / 60);
   const m = diffMins % 60;
   const label = h > 0 ? `${h}h${m > 0 ? m + 'm' : ''}` : `${m}m`;
-  const tier = diffMins < 30 ? 'ok' : diffMins < 60 ? 'warn' : 'breach';
+  
+  const firstRes = policy?.first_response_minutes || 30;
+  const resLimit = policy?.resolution_minutes || 60;
+  const tier = diffMins < firstRes ? 'ok' : diffMins < resLimit ? 'warn' : 'breach';
   return { label, tier, diffMins };
 }
 
@@ -62,8 +66,39 @@ export default function ChatWindow() {
     agents,
     contactCollapsed,
     setContactCollapsed,
-    fetchConversationsList
+    fetchConversationsList,
+    slaPolicy
   } = useApp();
+
+  // ── Execute Macro ───────────────────────────────────────────────
+  const handleExecuteMacro = async (macro) => {
+    setShowMacros(false);
+    if (!activeConversation) return;
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    try {
+      // Log audit action
+      logAuditAction('EXECUTE_MACRO', { macro_name: macro.name }, activeConversation.id);
+
+      for (const act of macro.actions || []) {
+        if (act.type === 'send_message') {
+          await sendAgentMessage({ conversationId: activeConversation.id, content: act.value, messageType: 'text', agentId: currentAgent, companyId: activeConversation.company_id });
+        } else if (act.type === 'assign_agent') {
+          await supabase.from('conversations').update({ assigned_agent_id: act.value }).eq('id', activeConversation.id);
+        } else if (act.type === 'assign_team') {
+          await supabase.from('conversations').update({ assigned_team_id: act.value }).eq('id', activeConversation.id);
+        } else if (act.type === 'add_label') {
+          await supabase.from('conversation_labels').insert({ conversation_id: activeConversation.id, label_id: act.value }).select('*').maybeSingle();
+        }
+      }
+      showToast(`Macro "${macro.name}" executada com sucesso!`, 'success');
+      fetchConversationsList(); // refresh list
+    } catch (err) {
+      console.error(err);
+      showToast(`Erro ao executar macro: ${err.message}`, 'error');
+    }
+  };
 
   // ── Core state ──────────────────────────────────────────────────
   const [messages, setMessages]         = useState([]);
@@ -109,6 +144,8 @@ export default function ChatWindow() {
   // ── Templates HSM ─────────────────────────────────────────────────
   const [showTemplates, setShowTemplates] = useState(false);
   const [templates, setTemplates]         = useState([]);
+  const [macros, setMacros] = useState([]);
+  const [showMacros, setShowMacros] = useState(false);
   const [templateSearch, setTemplateSearch] = useState('');
 
   const scrollerRef  = useRef(null);
@@ -126,7 +163,7 @@ export default function ChatWindow() {
     const t = setInterval(() => setSlaTick(n => n + 1), 60000);
     return () => clearInterval(t);
   }, []);
-  const slaInfo = activeConversation ? getSlaInfo(activeConversation) : null;
+  const slaInfo = activeConversation ? getSlaInfo(activeConversation, slaPolicy) : null;
 
   // ── Filtered agents for mention dropdown ─────────────────────────
   const mentionAgents = mentionSearch
@@ -236,7 +273,43 @@ export default function ChatWindow() {
         ]);
       }
     };
+    const loadMacros = async () => {
+      const supabase = getSupabase();
+      if (!supabase) return;
+      try {
+        const { data } = await supabase.from('macros').select('*').order('name');
+        setMacros(data || []);
+      } catch (e) {}
+    };
     loadTemplates();
+    loadMacros();
+  }, []);
+
+  // ── Clipboard paste ───────────────────────────────────────────────
+  const handlePaste = useCallback((e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) {
+          setSelectedFile(file);
+          showToast('Imagem colada — pronta para enviar!', 'info');
+        }
+        return;
+      }
+    }
+  }, []);
+
+  // ── Drag & Drop ───────────────────────────────────────────────────
+  const handleDragOver  = useCallback((e) => { e.preventDefault(); setIsDragOver(true); }, []);
+  const handleDragLeave = useCallback(() => setIsDragOver(false), []);
+  const handleDrop      = useCallback((e) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) { setSelectedFile(file); showToast(`Arquivo "${file.name}" pronto para enviar.`, 'info'); }
   }, []);
 
   // ── Empty state ───────────────────────────────────────────────────
@@ -265,6 +338,7 @@ export default function ChatWindow() {
   // ── Status change ─────────────────────────────────────────────────
   const handleStatusChange = async (status) => {
     await updateConversationStatus(activeConversation.id, status);
+    logAuditAction('STATUS_CHANGE', { new_status: status }, activeConversation.id);
     showToast(`Conversa marcada como ${status === 'resolved' ? 'resolvida' : status}!`, 'success');
     if (status === 'resolved' || status === 'pending' || status === 'snoozed') setActiveConversation(null);
     fetchConversationsList();
@@ -278,6 +352,7 @@ export default function ChatWindow() {
       try {
         await supabase.from('conversations').update({ bot_active: nextVal }).eq('id', activeConversation.id);
         activeConversation.bot_active = nextVal;
+        logAuditAction(nextVal ? 'ENABLE_BOT' : 'DISABLE_BOT', {}, activeConversation.id);
         showToast(nextVal ? 'Chatbot reativado!' : 'Chatbot pausado.', 'success');
         loadMessages();
       } catch (err) { showToast('Erro ao atualizar chatbot: ' + err.message, 'error'); }
@@ -314,14 +389,15 @@ export default function ChatWindow() {
 
       const metadata = replyRef ? { replied_to: replyRef } : undefined;
 
+      let newMsg = null;
       if (isNoteMode) {
-        await sendAgentMessage({ conversationId: activeConversation.id, content: text || (fileToUpload ? fileToUpload.name : ''), messageType: 'note', mediaUrl, agentId: currentAgent?.id, metadata });
+        newMsg = await sendAgentMessage({ conversationId: activeConversation.id, content: text || (fileToUpload ? fileToUpload.name : ''), messageType: 'note', mediaUrl, agentId: currentAgent?.id, metadata, companyId: activeConversation.company_id });
       } else {
-        await sendAgentMessage({ conversationId: activeConversation.id, content: text || (fileToUpload ? fileToUpload.name : ''), messageType, mediaUrl, agentId: currentAgent?.id, metadata });
+        newMsg = await sendAgentMessage({ conversationId: activeConversation.id, content: text || (fileToUpload ? fileToUpload.name : ''), messageType, mediaUrl, agentId: currentAgent?.id, metadata, companyId: activeConversation.company_id });
         let waContent = text || (fileToUpload ? fileToUpload.name : '');
         if (inbox.signature_enabled) waContent = `*${currentAgent?.name || 'Agente'}:*\n${waContent}`;
         if (inbox.is_connected) {
-          await sendWaMessage({ sessionId: inbox.wa_session_id, phone: contact.phone, type: messageType, content: waContent, mediaUrl, conversationId: activeConversation.id });
+          await sendWaMessage({ sessionId: inbox.wa_session_id, phone: contact.phone, type: messageType, content: waContent, mediaUrl, conversationId: activeConversation.id, messageId: newMsg?.id });
         } else {
           showToast('Aviso: Caixa de entrada WhatsApp desconectada.', 'warning');
         }
@@ -448,23 +524,6 @@ export default function ChatWindow() {
     setRecordingTime(0);
   };
 
-  // ── Clipboard paste ───────────────────────────────────────────────
-  const handlePaste = useCallback((e) => {
-    const items = e.clipboardData?.items;
-    if (!items) return;
-    for (const item of items) {
-      if (item.type.startsWith('image/')) {
-        e.preventDefault();
-        const file = item.getAsFile();
-        if (file) {
-          setSelectedFile(file);
-          showToast('Imagem colada — pronta para enviar!', 'info');
-        }
-        return;
-      }
-    }
-  }, []);
-
   // ── File handler ──────────────────────────────────────────────────
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -479,16 +538,6 @@ export default function ChatWindow() {
     setShowEmojis(false);
     inputRef.current?.focus();
   };
-
-  // ── Drag & Drop ───────────────────────────────────────────────────
-  const handleDragOver  = useCallback((e) => { e.preventDefault(); setIsDragOver(true); }, []);
-  const handleDragLeave = useCallback(() => setIsDragOver(false), []);
-  const handleDrop      = useCallback((e) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) { setSelectedFile(file); showToast(`Arquivo "${file.name}" pronto para enviar.`, 'info'); }
-  }, []);
 
   // ── Canned + mentions ─────────────────────────────────────────────
   const handleInputChange = async (e) => {
@@ -556,7 +605,7 @@ export default function ChatWindow() {
 
   // ── AI Copilot ────────────────────────────────────────────────────
   const handleAiCopilot = async () => {
-    const waUrl = localStorage.getItem('WA_API_URL') || 'http://localhost:3009';
+    const waUrl = localStorage.getItem('WA_API_URL') || import.meta.env.VITE_WA_API_URL || 'http://localhost:3009';
     const waKey = localStorage.getItem('WA_API_KEY') || '';
     if (!waUrl || !waKey) { showToast('Configure a conexão da API nas Configurações primeiro!', 'error'); return; }
     setAiLoading(true);
@@ -622,18 +671,6 @@ export default function ChatWindow() {
   const filteredTemplates = templateSearch
     ? templates.filter(t => t.name?.toLowerCase().includes(templateSearch.toLowerCase()) || t.body?.toLowerCase().includes(templateSearch.toLowerCase()))
     : templates;
-
-  // ────────────────────────────────────────────────────────────────
-  // RENDER
-  // ────────────────────────────────────────────────────────────────
-  if (!activeConversation) {
-    return (
-      <section id="chat-window" className="column-col3" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: 'var(--text-muted)' }}>
-        <MessageSquare size={48} style={{ opacity: 0.2, marginBottom: '16px' }} />
-        <p>Selecione uma conversa para iniciar o atendimento</p>
-      </section>
-    );
-  }
 
   return (
     <section
@@ -1081,7 +1118,40 @@ export default function ChatWindow() {
                   <Sparkles size={18} className={aiLoading ? 'shimmer-pulse' : ''} />
                 </button>
 
+                <button
+                  className="toolbar-btn"
+                  title="Macros Rápidas"
+                  onClick={() => setShowMacros(!showMacros)}
+                  style={{ color: showMacros ? 'var(--warning)' : undefined }}
+                >
+                  <Zap size={18} />
+                </button>
+
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} />
+
+                {/* Macros Dropdown */}
+                {showMacros && macros.length > 0 && (
+                  <div className="mention-dropdown" style={{ left: '0', bottom: 'calc(100% + 10px)', top: 'auto', width: '220px', zIndex: 100 }} onClick={e => e.stopPropagation()}>
+                    <div style={{ padding: '8px 12px', fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
+                      Executar Macro
+                    </div>
+                    {macros.map(mac => (
+                      <div
+                        key={mac.id}
+                        className="mention-item"
+                        onClick={() => handleExecuteMacro(mac)}
+                        style={{ borderBottom: '1px solid var(--border-light)' }}
+                      >
+                        <div>
+                          <div className="mention-item-name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <Zap size={12} color="var(--warning)" /> {mac.name}
+                          </div>
+                          {mac.description && <div className="mention-item-role">{mac.description}</div>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {/* Emoji Picker */}
                 {showEmojis && (

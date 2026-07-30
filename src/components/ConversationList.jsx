@@ -6,11 +6,19 @@ import AssignModal from './modals/AssignModal';
 import { Search, Menu, MessageSquare, AlertCircle, CheckSquare, X, CheckCircle, Clock, UserCheck, Square } from 'lucide-react';
 
 // ── SLA helper ──────────────────────────────────────────────────────
-function getSlaStatus(conv) {
+function getSlaStatus(conv, policy) {
   if (!conv?.created_at || conv.status !== 'open') return null;
-  const diffMins = Math.floor((Date.now() - new Date(conv.created_at)) / 60000);
-  if (diffMins < 30) return 'ok';
-  if (diffMins < 60) return 'warn';
+  
+  // Use last_message_at to calculate SLA relative to the last interaction
+  // This prevents long-lived or reopened conversations from being eternally breached
+  const referenceDate = conv.last_message_at || conv.created_at;
+  const diffMins = Math.floor((Date.now() - new Date(referenceDate)) / 60000);
+  
+  const firstRes = policy?.first_response_minutes || 30;
+  const resLimit = policy?.resolution_minutes || 60;
+  
+  if (diffMins < firstRes) return 'ok';
+  if (diffMins < resLimit) return 'warn';
   return 'breach';
 }
 
@@ -32,7 +40,8 @@ export default function ConversationList() {
     fetchConversationsList,
     setFilterSidebar,
     filterSidebar,
-    loading: appLoading
+    loading: appLoading,
+    slaPolicy
   } = useApp();
 
   const [foundMessages, setFoundMessages] = useState([]);
@@ -315,7 +324,7 @@ export default function ConversationList() {
             const isActive  = activeConversation && activeConversation.id === c.id;
             const isSelected = selectedIds.has(c.id);
             const initial   = (contact.name || contact.phone || 'C').substring(0, 1).toUpperCase();
-            const slaStatus = getSlaStatus(c);
+            const slaStatus = getSlaStatus(c, slaPolicy);
 
             return (
               <div
