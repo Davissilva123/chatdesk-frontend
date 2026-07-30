@@ -1,13 +1,13 @@
-import { createClient } from '@supabase/supabase-js';
+﻿import { createClient } from '@supabase/supabase-js';
 
 let supabaseClient = null;
 
-// Inicialização dinâmica baseada nas configurações salvas no localStorage
+// InicializaÃ§Ã£o dinÃ¢mica baseada nas configuraÃ§Ãµes salvas no localStorage
 export function initSupabase() {
   let url = localStorage.getItem('SUPABASE_URL');
   let key = localStorage.getItem('SUPABASE_ANON_KEY');
   
-  // Fallbacks padrão do projeto se não estiverem configurados
+  // Fallbacks padrÃ£o do projeto se nÃ£o estiverem configurados
   if (!url) {
     url = 'https://hkqznvekxcmxarupfklg.supabase.co';
     localStorage.setItem('SUPABASE_URL', url);
@@ -57,7 +57,7 @@ export function getSupabase() {
   return supabaseClient;
 }
 
-// Helper para verificar se está logado
+// Helper para verificar se estÃ¡ logado
 export async function getActiveSession() {
   const client = getSupabase();
   if (!client) return null;
@@ -65,7 +65,7 @@ export async function getActiveSession() {
     const { data: { session } } = await client.auth.getSession();
     return session;
   } catch (err) {
-    console.error('Erro ao verificar sessão ativa:', err);
+    console.error('Erro ao verificar sessÃ£o ativa:', err);
     return null;
   }
 }
@@ -78,8 +78,8 @@ export async function getCurrentAgent() {
   const session = await getActiveSession();
   if (!session) return null;
 
-  // Usa função RPC com SECURITY DEFINER para ignorar o RLS
-  // e sempre conseguir ler o próprio perfil do agente.
+  // Usa funÃ§Ã£o RPC com SECURITY DEFINER para ignorar o RLS
+  // e sempre conseguir ler o prÃ³prio perfil do agente.
   try {
     const { data: agent, error } = await client.rpc('get_current_agent');
 
@@ -95,11 +95,11 @@ export async function getCurrentAgent() {
 
   if (error) {
     console.error('Erro ao consultar agente:', error);
-    // Último recurso: retorna objeto mínimo para não travar o login
+    // Ãšltimo recurso: retorna objeto mÃ­nimo para nÃ£o travar o login
     return {
       id: null,
       user_id: session.user.id,
-      name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Usuário',
+      name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'UsuÃ¡rio',
       email: session.user.email,
       role: 'agent',
       status: 'online',
@@ -108,15 +108,15 @@ export async function getCurrentAgent() {
     };
   }
 
-  // Se não existir perfil na tabela agents, tentar criar (apenas se tiver empresa disponível)
+  // Se nÃ£o existir perfil na tabela agents, tentar criar (apenas se tiver empresa disponÃ­vel)
   if (!agent) {
-    // Para novos registros no modelo SaaS, buscar a Empresa Padrão
+    // Para novos registros no modelo SaaS, buscar a Empresa PadrÃ£o
     const { data: defaultCompany } = await client.from('companies').select('id').limit(1).single();
 
     if (!defaultCompany?.id) {
-      // Não conseguiu achar empresa (RLS bloqueando ou ainda não criada).
-      // Retorna null para não tentar inserir com company_id nulo.
-      console.warn('Não foi possível determinar empresa para criar agente automaticamente.');
+      // NÃ£o conseguiu achar empresa (RLS bloqueando ou ainda nÃ£o criada).
+      // Retorna null para nÃ£o tentar inserir com company_id nulo.
+      console.warn('NÃ£o foi possÃ­vel determinar empresa para criar agente automaticamente.');
       return null;
     }
 
@@ -134,7 +134,7 @@ export async function getCurrentAgent() {
       .single();
 
     if (createError) {
-      console.error('Erro ao criar perfil de agente automático:', createError);
+      console.error('Erro ao criar perfil de agente automÃ¡tico:', createError);
       return null;
     }
     return newAgent;
@@ -162,7 +162,7 @@ export async function getConversations({ agentId, unassigned, status, teamId, in
   if (status) {
     query = query.eq('status', status);
   } else {
-    query = query.neq('status', 'resolved'); // por padrão oculta resolvidas
+    query = query.neq('status', 'resolved'); // por padrÃ£o oculta resolvidas
   }
 
   if (unassigned) {
@@ -210,7 +210,7 @@ export async function getMessages(conversationId) {
 // Enviar mensagem como agente
 export async function sendAgentMessage({ conversationId, content, messageType = 'text', mediaUrl = null, agentId = null, metadata = null, companyId = null }) {
   const client = getSupabase();
-  if (!client) throw new Error('Supabase n�o configurado');
+  if (!client) throw new Error('Supabase não configurado');
 
   let finalCompanyId = companyId;
   if (!finalCompanyId) {
@@ -266,10 +266,10 @@ export async function sendAgentMessage({ conversationId, content, messageType = 
 }
 
 
-// Editar conteúdo de uma mensagem
+// Editar conteÃºdo de uma mensagem
 export async function updateMessage(messageId, newContent) {
   const client = getSupabase();
-  if (!client) throw new Error('Supabase não configurado');
+  if (!client) throw new Error('Supabase nÃ£o configurado');
   const { data, error } = await client
     .from('messages')
     .update({ content: newContent })
@@ -283,7 +283,7 @@ export async function updateMessage(messageId, newContent) {
 // Deletar mensagem (soft delete via metadata)
 export async function deleteMessage(messageId) {
   const client = getSupabase();
-  if (!client) throw new Error('Supabase não configurado');
+  if (!client) throw new Error('Supabase nÃ£o configurado');
   // First get current metadata
   const { data: existing } = await client.from('messages').select('metadata').eq('id', messageId).maybeSingle();
   const meta = { ...(existing?.metadata || {}), deleted: true };
@@ -294,7 +294,7 @@ export async function deleteMessage(messageId) {
   if (error) throw error;
 }
 
-// Ações em lote em conversas
+// AÃ§Ãµes em lote em conversas
 export async function bulkUpdateConversations(ids, updates) {
   const client = getSupabase();
   if (!client || !ids?.length) return;
@@ -435,7 +435,7 @@ export async function getLabelsList() {
   return data || [];
 }
 
-// Resetar contagem de mensagens não lidas
+// Resetar contagem de mensagens nÃ£o lidas
 export async function resetUnreadCount(conversationId) {
   const client = getSupabase();
   if (!client) return;
@@ -453,7 +453,7 @@ export async function resetUnreadCount(conversationId) {
 // Enviar arquivo para storage do Supabase a partir do frontend
 export async function uploadFileToSupabase(file) {
   const client = getSupabase();
-  if (!client) throw new Error('Supabase não configurado');
+  if (!client) throw new Error('Supabase nÃ£o configurado');
 
   const ext = file.name.split('.').pop();
   const filename = `${Math.random().toString(36).substring(2)}-${Date.now()}.${ext}`;
@@ -476,7 +476,7 @@ export async function uploadFileToSupabase(file) {
   };
 }
 
-// ── Audit Logs Helper ──────────────────────────────────────────────
+// â”€â”€ Audit Logs Helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export async function logAuditAction(action, metadata = {}, entity_id = null) {
   const agent = await getCurrentAgent();
   if (!agent) return;
