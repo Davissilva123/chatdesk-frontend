@@ -749,7 +749,7 @@ function InboxConfigModal({ inbox, onClose, onCompleted }) {
     }
   };
 
-  const waApiUrl = localStorage.getItem('WA_API_URL') || 'http://localhost:3009';
+  const waApiUrl = localStorage.getItem('WA_API_URL') || import.meta.env.VITE_WA_API_URL || 'http://localhost:3009';
   const webhookUrl = `${waApiUrl}/api/webhook`;
 
   return (
