@@ -210,7 +210,17 @@ export async function getMessages(conversationId) {
 // Enviar mensagem como agente
 export async function sendAgentMessage({ conversationId, content, messageType = 'text', mediaUrl = null, agentId = null, metadata = null, companyId = null }) {
   const client = getSupabase();
-  if (!client) throw new Error('Supabase n√£o configurado');
+  if (!client) throw new Error('Supabase n„o configurado');
+
+  let finalCompanyId = companyId;
+  if (!finalCompanyId) {
+    try {
+      const agentRes = await client.rpc('get_current_agent');
+      if (agentRes.data && agentRes.data.company_id) {
+        finalCompanyId = agentRes.data.company_id;
+      }
+    } catch (e) { console.error('Fallback company_id error', e); }
+  }
 
   const insertPayload = {
     conversation_id: conversationId,
@@ -222,8 +232,8 @@ export async function sendAgentMessage({ conversationId, content, messageType = 
     status: 'sent'
   };
 
-  if (companyId) {
-    insertPayload.company_id = companyId;
+  if (finalCompanyId) {
+    insertPayload.company_id = finalCompanyId;
   }
 
   // Only include metadata if provided (backwards compatible)
@@ -484,3 +494,5 @@ export async function logAuditAction(action, metadata = {}, entity_id = null) {
     console.error('Failed to log audit action', err);
   }
 }
+
+
