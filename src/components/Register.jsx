@@ -14,7 +14,7 @@ export default function Register({ onBackToLogin, onRegisterSuccess }) {
     e.preventDefault();
     setLoading(true);
 
-    const waUrl = localStorage.getItem('WA_API_URL') || 'http://localhost:3009';
+    const waUrl = localStorage.getItem('WA_API_URL') || import.meta.env.VITE_WA_API_URL || 'http://localhost:3009';
 
     try {
       // Chama a rota pública do backend que lida com o registro multi-tenant

@@ -229,7 +229,7 @@ export default function CampaignsView() {
       }
     }
 
-    const waUrl = localStorage.getItem('WA_API_URL') || 'http://localhost:3009';
+    const waUrl = localStorage.getItem('WA_API_URL') || import.meta.env.VITE_WA_API_URL || 'http://localhost:3009';
     const apiKey = localStorage.getItem('WA_API_KEY') || '';
 
     if (!waUrl || !apiKey) {

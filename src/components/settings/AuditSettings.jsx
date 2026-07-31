@@ -160,7 +160,7 @@ export default function AuditSettings() {
                     {log.entity_type}
                   </td>
                   <td style={{ padding: '12px 16px', color: 'var(--text-secondary)', fontSize: '12px' }}>
-                    {log.details || '-'}
+                    {log.metadata ? JSON.stringify(log.metadata) : (log.details || '-')}
                   </td>
                 </tr>
               ))

@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 
 export default function ReportsView() {
-  const { agents, inboxes } = useApp();
+  const { agents, inboxes, slaPolicy } = useApp();
 
   const [period, setPeriod] = useState('month'); // today | week | month | 30d | custom
   const [customStart, setCustomStart] = useState('');
@@ -133,7 +133,8 @@ export default function ReportsView() {
 
       let totalResponseTimeMs = 0;
       let respondedCount = 0;
-      let slaMetCount = 0; // SLA = response within 15 minutes (900,000 ms)
+      let slaMetCount = 0; // SLA = response within policy time
+      const slaLimitMs = (slaPolicy?.first_response_minutes || 30) * 60000;
 
       if (conversations) {
         conversations.forEach(conv => {
@@ -144,7 +145,7 @@ export default function ReportsView() {
             if (diffMs > 0) {
               totalResponseTimeMs += diffMs;
               respondedCount++;
-              if (diffMs <= 15 * 60 * 1000) {
+              if (diffMs <= slaLimitMs) {
                 slaMetCount++;
               }
             }

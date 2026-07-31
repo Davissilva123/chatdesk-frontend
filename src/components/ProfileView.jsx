@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../AppContext';
-import { getSupabase } from '../supabase';
+import { getSupabase, logAuditAction } from '../supabase';
 import { showToast } from '../utils';
 import { User, Mail, Phone, Camera, Save, Lock, Eye, EyeOff, Shield, Activity, Clock, MessageSquare } from 'lucide-react';
 

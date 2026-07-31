@@ -401,6 +401,14 @@ export default function SuperAdminView({ isStandalone=false }) {
   const [waUrl, setWaUrl] = useState(localStorage.getItem('WA_API_URL') || '');
   const [waKey, setWaKey] = useState(localStorage.getItem('WA_API_KEY') || '');
 
+  // Auto-save no localStorage para evitar perda de dados se o usuário fechar a aba sem salvar
+  useEffect(() => {
+    if (supabaseUrl) localStorage.setItem('SUPABASE_URL', supabaseUrl.trim());
+    if (supabaseKey) localStorage.setItem('SUPABASE_ANON_KEY', supabaseKey.trim());
+    if (waUrl) localStorage.setItem('WA_API_URL', waUrl.trim());
+    if (waKey) localStorage.setItem('WA_API_KEY', waKey.trim());
+  }, [supabaseUrl, supabaseKey, waUrl, waKey]);
+
   const handleSaveConnectionSettings = (e) => {
     e.preventDefault();
     localStorage.setItem('SUPABASE_URL', supabaseUrl.trim());

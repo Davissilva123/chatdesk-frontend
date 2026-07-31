@@ -62,9 +62,12 @@ export default function ContactPanel() {
       if (!supabase) return;
 
       try {
+        let entityIds = [contact.id];
+        if (activeConversation?.id) entityIds.push(activeConversation.id);
+
         const [attrsRes, valsRes] = await Promise.all([
-          supabase.from('custom_attributes').select('*').eq('entity_type', 'contact'),
-          supabase.from('custom_attribute_values').select('*').eq('entity_id', contact.id)
+          supabase.from('custom_attributes').select('*'),
+          supabase.from('custom_attribute_values').select('*').in('entity_id', entityIds)
         ]);
 
         if (attrsRes.error) throw attrsRes.error;
@@ -85,7 +88,7 @@ export default function ContactPanel() {
     if (activeTab === 'details' && contact.id) {
       loadCustomAttributes();
     }
-  }, [contact.id, activeTab]);
+  }, [contact.id, activeConversation?.id, activeTab]);
 
   // Load Media Files
   useEffect(() => {
@@ -193,7 +196,7 @@ export default function ContactPanel() {
   };
 
   // Custom Attribute Upsert Handler
-  const handleCustomAttributeUpsert = async (attrId, valueId, newValue) => {
+  const handleCustomAttributeUpsert = async (attrId, entityId, valueId, newValue) => {
     const supabase = getSupabase();
     if (!supabase) return;
 
@@ -219,7 +222,7 @@ export default function ContactPanel() {
           .from('custom_attribute_values')
           .insert({
             attribute_id: attrId,
-            entity_id: contact.id,
+            entity_id: entityId,
             value: newValue
           })
           .select()
@@ -502,11 +505,11 @@ export default function ContactPanel() {
             </div>
 
             {/* Custom Attributes */}
-            {customAttributes.length > 0 && (
+            {customAttributes.filter(a => a.entity_type === 'contact').length > 0 && (
               <div className="col4-section">
-                <h4 className="col4-sec-title">Atributos Personalizados</h4>
+                <h4 className="col4-sec-title">Atributos do Contato</h4>
                 <div>
-                  {customAttributes.map(attr => {
+                  {customAttributes.filter(a => a.entity_type === 'contact').map(attr => {
                     const valObj = customAttributeValues[attr.id];
                     const currentVal = valObj ? (valObj.value || '') : '';
 
@@ -516,7 +519,7 @@ export default function ContactPanel() {
                         {attr.field_type === 'boolean' ? (
                           <select 
                             value={currentVal} 
-                            onChange={(e) => handleCustomAttributeUpsert(attr.id, valObj?.id, e.target.value)}
+                            onChange={(e) => handleCustomAttributeUpsert(attr.id, contact.id, valObj?.id, e.target.value)}
                             style={{ width: '100%', height: '34px', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 'var(--radius)' }}
                           >
                             <option value="">Não informado</option>
@@ -527,7 +530,7 @@ export default function ContactPanel() {
                           <input 
                             type="number" 
                             defaultValue={currentVal} 
-                            onBlur={(e) => handleCustomAttributeUpsert(attr.id, valObj?.id, e.target.value)}
+                            onBlur={(e) => handleCustomAttributeUpsert(attr.id, contact.id, valObj?.id, e.target.value)}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') {
                                 e.target.blur();
@@ -540,14 +543,76 @@ export default function ContactPanel() {
                           <input 
                             type="date" 
                             value={currentVal} 
-                            onChange={(e) => handleCustomAttributeUpsert(attr.id, valObj?.id, e.target.value)}
+                            onChange={(e) => handleCustomAttributeUpsert(attr.id, contact.id, valObj?.id, e.target.value)}
                             style={{ width: '100%', height: '34px', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 'var(--radius)', padding: '0 8px' }}
                           />
                         ) : (
                           <input 
                             type="text" 
                             defaultValue={currentVal} 
-                            onBlur={(e) => handleCustomAttributeUpsert(attr.id, valObj?.id, e.target.value)}
+                            onBlur={(e) => handleCustomAttributeUpsert(attr.id, contact.id, valObj?.id, e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.target.blur();
+                              }
+                            }}
+                            placeholder="Preencher valor..."
+                            style={{ width: '100%', height: '34px', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 'var(--radius)', padding: '0 8px' }}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {customAttributes.filter(a => a.entity_type === 'conversation').length > 0 && activeConversation?.id && (
+              <div className="col4-section">
+                <h4 className="col4-sec-title">Atributos da Conversa</h4>
+                <div>
+                  {customAttributes.filter(a => a.entity_type === 'conversation').map(attr => {
+                    const valObj = customAttributeValues[attr.id];
+                    const currentVal = valObj ? (valObj.value || '') : '';
+
+                    return (
+                      <div key={attr.id} className="form-field" style={{ marginBottom: '8px' }}>
+                        <label style={{ fontSize: '10px' }}>{attr.name}</label>
+                        {attr.field_type === 'boolean' ? (
+                          <select 
+                            value={currentVal} 
+                            onChange={(e) => handleCustomAttributeUpsert(attr.id, activeConversation.id, valObj?.id, e.target.value)}
+                            style={{ width: '100%', height: '34px', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 'var(--radius)' }}
+                          >
+                            <option value="">Não informado</option>
+                            <option value="true">Sim</option>
+                            <option value="false">Não</option>
+                          </select>
+                        ) : attr.field_type === 'number' ? (
+                          <input 
+                            type="number" 
+                            defaultValue={currentVal} 
+                            onBlur={(e) => handleCustomAttributeUpsert(attr.id, activeConversation.id, valObj?.id, e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.target.blur();
+                              }
+                            }}
+                            placeholder="Digite um número"
+                            style={{ width: '100%', height: '34px', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 'var(--radius)', padding: '0 8px' }}
+                          />
+                        ) : attr.field_type === 'date' ? (
+                          <input 
+                            type="date" 
+                            value={currentVal} 
+                            onChange={(e) => handleCustomAttributeUpsert(attr.id, activeConversation.id, valObj?.id, e.target.value)}
+                            style={{ width: '100%', height: '34px', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 'var(--radius)', padding: '0 8px' }}
+                          />
+                        ) : (
+                          <input 
+                            type="text" 
+                            defaultValue={currentVal} 
+                            onBlur={(e) => handleCustomAttributeUpsert(attr.id, activeConversation.id, valObj?.id, e.target.value)}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') {
                                 e.target.blur();

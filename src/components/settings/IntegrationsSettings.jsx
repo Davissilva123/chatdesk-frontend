@@ -42,8 +42,8 @@ export default function IntegrationsSettings() {
   };
 
   useEffect(() => {
-    const url = localStorage.getItem('WA_API_URL') || 'http://localhost:3009';
-    const key = localStorage.getItem('WA_API_KEY') || 'Não configurada';
+    const url = localStorage.getItem('WA_API_URL') || import.meta.env.VITE_WA_API_URL || 'http://localhost:3009';
+    const key = localStorage.getItem('WA_API_KEY') || import.meta.env.VITE_WA_API_KEY || 'Não configurada';
     setWaUrl(url);
     setApiKey(key);
 

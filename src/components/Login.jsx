@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getSupabase } from '../supabase';
+import { getSupabase, logAuditAction } from '../supabase';
 import { showToast } from '../utils';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 
@@ -30,6 +30,7 @@ export default function Login({ onLoginSuccess, onGoToRegister }) {
       if (error) {
         showToast('Falha no login: ' + error.message, 'error');
       } else {
+        await logAuditAction('LOGIN', { email });
         showToast('Login realizado com sucesso!', 'success');
         if (onLoginSuccess) onLoginSuccess();
       }

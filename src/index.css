@@ -2365,9 +2365,21 @@ input:focus, select:focus, textarea:focus {
   z-index: 10;
   white-space: nowrap;
 }
-.msg-hover-actions.left  { right: auto; left: calc(100% + 8px); }
-.msg-hover-actions.right { left: auto; right: calc(100% + 8px); }
-.msg-wrapper:hover .msg-hover-actions {
+.msg-hover-actions.left  { right: auto; left: calc(100% + 4px); }
+.msg-hover-actions.right { left: auto; right: calc(100% + 4px); }
+
+/* Bridge to prevent losing hover when crossing the gap */
+.msg-hover-actions::before {
+  content: '';
+  position: absolute;
+  top: -10px; bottom: -10px;
+  width: 16px;
+}
+.msg-hover-actions.left::before { right: 100%; }
+.msg-hover-actions.right::before { left: 100%; }
+
+.msg-wrapper:hover .msg-hover-actions,
+.msg-hover-actions:hover {
   opacity: 1;
   pointer-events: all;
   transform: translateY(0);

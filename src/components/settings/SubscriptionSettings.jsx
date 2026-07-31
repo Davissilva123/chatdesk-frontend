@@ -51,7 +51,7 @@ export default function SubscriptionSettings() {
 
   const handleCheckout = async () => {
     setCheckoutLoading(true);
-    const waUrl = localStorage.getItem('WA_API_URL') || 'http://localhost:3009';
+    const waUrl = localStorage.getItem('WA_API_URL') || import.meta.env.VITE_WA_API_URL || 'http://localhost:3009';
     try {
       const response = await fetch(`${waUrl}/api/billing/checkout`, {
         method: 'POST',
@@ -73,7 +73,7 @@ export default function SubscriptionSettings() {
   };
 
   const handleMockPay = async () => {
-    const waUrl = localStorage.getItem('WA_API_URL') || 'http://localhost:3009';
+    const waUrl = localStorage.getItem('WA_API_URL') || import.meta.env.VITE_WA_API_URL || 'http://localhost:3009';
     try {
       const response = await fetch(`${waUrl}/api/billing/mock-pay`, {
         method: 'POST',

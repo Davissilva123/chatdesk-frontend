@@ -11,7 +11,7 @@ import {
   deleteMessage,
   logAuditAction
 } from '../supabase';
-import { sendWaMessage } from '../whatsapp';
+import { sendWaMessage, deleteWaMessage, editWaMessage, reactWaMessage } from '../whatsapp';
 import { formatTime, showToast, formatMessageText } from '../utils';
 import { 
   ArrowLeft, FolderOpen, Check, User, MoreVertical, Download, Lock,
@@ -397,7 +397,7 @@ export default function ChatWindow() {
         let waContent = text || (fileToUpload ? fileToUpload.name : '');
         if (inbox.signature_enabled) waContent = `*${currentAgent?.name || 'Agente'}:*\n${waContent}`;
         if (inbox.is_connected) {
-          await sendWaMessage({ sessionId: inbox.wa_session_id, phone: contact.phone, type: messageType, content: waContent, mediaUrl, conversationId: activeConversation.id, messageId: newMsg?.id });
+          await sendWaMessage({ sessionId: inbox.wa_session_id, phone: contact.phone, type: messageType, content: waContent, mediaUrl, conversationId: activeConversation.id, messageId: newMsg?.id, replyToMessageId: replyTo?.id });
         } else {
           showToast('Aviso: Caixa de entrada WhatsApp desconectada.', 'warning');
         }
@@ -438,29 +438,62 @@ export default function ChatWindow() {
     });
     if (supabase) {
       try {
-        const { data: msgData } = await supabase.from('messages').select('metadata').eq('id', msgId).maybeSingle();
+        const { data: msgData } = await supabase.from('messages').select('metadata, wa_message_id, sender_type').eq('id', msgId).maybeSingle();
         const currentMeta = msgData?.metadata || {};
         const currentReactions = { ...(currentMeta.reactions || {}) };
         const users = [...(currentReactions[emoji] || [])];
         const myId = currentAgent?.id;
         const idx = users.indexOf(myId);
         if (idx >= 0) users.splice(idx, 1); else users.push(myId);
-        if (users.length === 0) delete currentReactions[emoji]; else currentReactions[emoji] = users;
+        
+        let newEmojiForWa = emoji;
+        if (users.length === 0) {
+          delete currentReactions[emoji];
+          newEmojiForWa = ''; // empty string removes reaction in WA
+        } else {
+          currentReactions[emoji] = users;
+        }
+        
         await supabase.from('messages').update({ metadata: { ...currentMeta, reactions: currentReactions } }).eq('id', msgId);
+        
+        if (inbox.is_connected && msgData?.wa_message_id) {
+          await reactWaMessage({
+            sessionId: inbox.wa_session_id,
+            phone: contact.phone,
+            waMessageId: msgData.wa_message_id,
+            reaction: newEmojiForWa,
+            fromMe: msgData.sender_type === 'agent',
+            messageId: msgId
+          }).catch(console.error);
+        }
       } catch (err) { console.error('Reaction save error:', err); }
     }
   };
 
   // ── Edit/Delete handlers ──────────────────────────────────────────
   const handleStartEdit = (msg) => {
+    if (!msg.wa_message_id) {
+      showToast('Esta mensagem não possui ID do WhatsApp.', 'warning');
+      return;
+    }
     setEditingMsgId(msg.id);
     setEditingContent(msg.content || '');
   };
 
-  const handleSaveEdit = async (msgId) => {
+  const handleSaveEdit = async (msgId, waMessageId) => {
     if (!editingContent.trim()) return;
     try {
-      await updateMessage(msgId, editingContent.trim());
+      if (inbox.is_connected && waMessageId) {
+        await editWaMessage({
+          sessionId: inbox.wa_session_id,
+          phone: contact.phone,
+          waMessageId,
+          newContent: editingContent.trim(),
+          messageId: msgId
+        });
+      } else {
+        await updateMessage(msgId, editingContent.trim());
+      }
       setEditedMsgIds(prev => new Set([...prev, msgId]));
       setEditingMsgId(null);
       loadMessages();
@@ -468,13 +501,36 @@ export default function ChatWindow() {
     } catch (err) { showToast('Erro ao editar: ' + err.message, 'error'); }
   };
 
-  const handleDeleteMessage = async (msgId) => {
-    if (!window.confirm('Deletar esta mensagem?')) return;
-    try {
-      await deleteMessage(msgId);
-      loadMessages();
-      showToast('Mensagem removida.', 'success');
-    } catch (err) { showToast('Erro ao deletar: ' + err.message, 'error'); }
+  const handleDeleteMessage = async (msgId, waMessageId) => {
+    const isWp = !!waMessageId && inbox.is_connected;
+    let deleteForEveryone = false;
+    
+    if (isWp) {
+      const confirmResult = window.prompt('Digite "1" para Apagar para Todos, "2" para Apagar só para mim, ou cancele para abortar:');
+      if (!confirmResult) return;
+      if (confirmResult === '1') deleteForEveryone = true;
+      else if (confirmResult === '2') deleteForEveryone = false;
+      else return;
+      
+      try {
+        await deleteWaMessage({
+          sessionId: inbox.wa_session_id,
+          phone: contact.phone,
+          waMessageId,
+          deleteForEveryone,
+          messageId: msgId
+        });
+        loadMessages();
+        showToast('Mensagem removida no WhatsApp.', 'success');
+      } catch (err) { showToast('Erro ao deletar no WhatsApp: ' + err.message, 'error'); }
+    } else {
+      if (!window.confirm('Deletar esta mensagem?')) return;
+      try {
+        await deleteMessage(msgId);
+        loadMessages();
+        showToast('Mensagem removida.', 'success');
+      } catch (err) { showToast('Erro ao deletar: ' + err.message, 'error'); }
+    }
   };
 
   // ── Audio recording ───────────────────────────────────────────────
@@ -858,7 +914,7 @@ export default function ChatWindow() {
                   <span style={{ fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '2px', padding: '0 4px', fontWeight: 500 }}>{agentName}</span>
                 )}
 
-                <div className="msg-wrapper" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: isLeft ? 'flex-start' : 'flex-end' }}>
+                <div className="msg-wrapper" style={{ display: 'flex', flexDirection: 'column', alignItems: isLeft ? 'flex-start' : 'flex-end', position: 'relative' }}>
 
                   {/* ── Hover Actions ── */}
                   {!isDeleted && !isEditing && (
@@ -875,7 +931,7 @@ export default function ChatWindow() {
                           <button className="msg-action-btn" title="Editar mensagem" onClick={() => handleStartEdit(msg)}>
                             <Edit3 size={13} />
                           </button>
-                          <button className="msg-action-btn" title="Deletar mensagem" onClick={() => handleDeleteMessage(msg.id)} style={{ color: 'var(--danger)' }}>
+                          <button className="msg-action-btn" title="Deletar mensagem" onClick={() => handleDeleteMessage(msg.id, msg.wa_message_id)} style={{ color: 'var(--danger)' }}>
                             <Trash2 size={13} />
                           </button>
                         </>
@@ -923,7 +979,7 @@ export default function ChatWindow() {
                         />
                         <div className="msg-edit-actions">
                           <button className="msg-edit-cancel" onClick={() => setEditingMsgId(null)}>Cancelar</button>
-                          <button className="msg-edit-save" onClick={() => handleSaveEdit(msg.id)}>Salvar</button>
+                          <button className="msg-edit-save" onClick={() => handleSaveEdit(msg.id, msg.wa_message_id)}>Salvar</button>
                         </div>
                       </div>
                     ) : (

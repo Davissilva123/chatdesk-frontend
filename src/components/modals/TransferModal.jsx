@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../AppContext';
-import { getSupabase } from '../../supabase';
+import { getSupabase, logAuditAction } from '../../supabase';
 import { showToast } from '../../utils';
 import { ArrowRightLeft, X, Search } from 'lucide-react';
 
@@ -51,6 +51,8 @@ export default function TransferModal({ conversation, onClose, onTransferred }) 
         content: noteText,
         message_type: 'activity'
       });
+
+      logAuditAction('TRANSFER_CHAT', { from_agent: fromName, to_agent: toName, note: note.trim() }, conversation.id);
 
       showToast(`Conversa transferida para ${toName}!`, 'success');
       onTransferred();

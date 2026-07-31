@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../AppContext';
-import { getSupabase } from '../supabase';
+import { getSupabase, logAuditAction } from '../supabase';
 import { showToast } from '../utils';
 import { 
   Search, 
@@ -18,7 +18,8 @@ export default function ContactsView() {
   const { 
     setActiveView, 
     setActiveConversation, 
-    inboxes 
+    inboxes,
+    currentAgent
   } = useApp();
 
   const [contacts, setContacts] = useState([]);
@@ -38,6 +39,10 @@ export default function ContactsView() {
   const [formCountry, setFormCountry] = useState('');
   const [formCompany, setFormCompany] = useState('');
   const [saving, setSaving] = useState(false);
+  
+  // Custom Attributes
+  const [customAttributes, setCustomAttributes] = useState([]);
+  const [customAttributeValues, setCustomAttributeValues] = useState({});
 
   const fetchContacts = async (query = '') => {
     const supabase = getSupabase();
@@ -66,6 +71,39 @@ export default function ContactsView() {
   useEffect(() => {
     fetchContacts(searchQuery);
   }, [searchQuery]);
+
+  useEffect(() => {
+    async function loadAttrs() {
+      if (!modalOpen) return;
+      const supabase = getSupabase();
+      if (!supabase) return;
+      try {
+        const { data: attrs } = await supabase.from('custom_attributes').select('*').eq('entity_type', 'contact');
+        setCustomAttributes(attrs || []);
+        
+        if (selectedContact?.id) {
+          const { data: vals } = await supabase.from('custom_attribute_values').select('*').eq('entity_id', selectedContact.id);
+          const valueMap = {};
+          (vals || []).forEach(v => {
+            valueMap[v.attribute_id] = v;
+          });
+          setCustomAttributeValues(valueMap);
+        } else {
+          setCustomAttributeValues({});
+        }
+      } catch (err) {
+        console.error('Erro ao carregar atributos personalizados:', err);
+      }
+    }
+    loadAttrs();
+  }, [modalOpen, selectedContact]);
+
+  const handleCustomAttrChange = (attrId, value) => {
+    setCustomAttributeValues(prev => ({
+      ...prev,
+      [attrId]: { ...(prev[attrId] || {}), value }
+    }));
+  };
 
   const handleStartChat = async (contact) => {
     const supabase = getSupabase();
@@ -104,6 +142,7 @@ export default function ContactsView() {
       const { data: created, error: createError } = await supabase
         .from('conversations')
         .insert({
+          company_id: currentAgent?.company_id || contact.company_id,
           contact_id: contact.id,
           inbox_id: defaultInbox.id,
           status: 'open',
@@ -147,6 +186,7 @@ export default function ContactsView() {
       if (error) throw error;
 
       showToast(`Contato ${contact.is_blocked ? 'desbloqueado' : 'bloqueado'} com sucesso!`, 'success');
+      logAuditAction(contact.is_blocked ? 'UNBLOCK_CONTACT' : 'BLOCK_CONTACT', { contact_name: contact.name, phone: contact.phone }, contact.id);
       fetchContacts(searchQuery);
     } catch (err) {
       console.error(err);
@@ -171,6 +211,7 @@ export default function ContactsView() {
       if (error) throw error;
 
       showToast('Contato excluído com sucesso!', 'success');
+      logAuditAction('DELETE_CONTACT', { contact_id: contactId }, contactId);
       fetchContacts(searchQuery);
     } catch (err) {
       console.error(err);
@@ -260,7 +301,7 @@ export default function ContactsView() {
     try {
       if (modalOpen === 'create') {
         const cleanedPhone = formPhone.replace(/\D/g, '');
-        const { error } = await supabase
+        const { data: insertRes, error } = await supabase
           .from('contacts')
           .insert({ 
             name: formName.trim(), 
@@ -270,9 +311,20 @@ export default function ContactsView() {
             city: formCity.trim(),
             country: formCountry.trim(),
             company: formCompany.trim()
-          });
+          })
+          .select()
+          .single();
 
         if (error) throw error;
+        
+        const newContactId = insertRes.id;
+        
+        // Salvar atributos
+        const upsertPromises = Object.entries(customAttributeValues).map(async ([attrId, valObj]) => {
+          if (!valObj.value && !valObj.id) return null; 
+          return supabase.from('custom_attribute_values').insert({ attribute_id: attrId, entity_id: newContactId, value: valObj.value });
+        });
+        await Promise.all(upsertPromises);
         showToast('Contato criado com sucesso!', 'success');
       } else if (modalOpen === 'edit' && selectedContact) {
         const cleanedPhone = formPhone.replace(/\D/g, '');
@@ -290,6 +342,18 @@ export default function ContactsView() {
           .eq('id', selectedContact.id);
 
         if (error) throw error;
+        
+        // Atualizar atributos
+        const upsertPromises = Object.entries(customAttributeValues).map(async ([attrId, valObj]) => {
+          if (!valObj.value && !valObj.id) return null; 
+          if (valObj.id) {
+            return supabase.from('custom_attribute_values').update({ value: valObj.value, updated_at: new Date().toISOString() }).eq('id', valObj.id);
+          } else {
+            return supabase.from('custom_attribute_values').insert({ attribute_id: attrId, entity_id: selectedContact.id, value: valObj.value });
+          }
+        });
+        await Promise.all(upsertPromises);
+        
         showToast('Contato atualizado com sucesso!', 'success');
       }
 
@@ -436,7 +500,7 @@ export default function ContactsView() {
       {/* Add / Edit Contact Modal Overlay */}
       {modalOpen && (
         <div className="modal-overlay" style={{ display: 'flex', zIndex: 1000 }}>
-          <div className="modal-card">
+          <div className="modal-card" style={{ maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="modal-header">
               <h3 className="modal-title">
                 {modalOpen === 'create' ? 'Novo Contato' : 'Editar Detalhes do Contato'}
@@ -532,6 +596,58 @@ export default function ContactsView() {
                   </select>
                 </div>
               </div>
+
+              {customAttributes.length > 0 && (
+                <>
+                  <div style={{ margin: '24px 0 12px 0', borderBottom: '1px solid var(--border)' }}></div>
+                  <h4 style={{ fontSize: '14px', marginBottom: '16px', color: 'var(--text-primary)', fontWeight: 600 }}>Atributos Personalizados</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    {customAttributes.map(attr => {
+                      const valObj = customAttributeValues[attr.id];
+                      const currentVal = valObj ? (valObj.value || '') : '';
+                      return (
+                        <div key={attr.id} className="form-field">
+                          <label>{attr.name}</label>
+                          {attr.field_type === 'boolean' ? (
+                            <select 
+                              value={currentVal} 
+                              onChange={(e) => handleCustomAttrChange(attr.id, e.target.value)}
+                              style={{ width: '100%', height: '38px', padding: '0 10px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-primary)' }}
+                            >
+                              <option value="">Não informado</option>
+                              <option value="true">Sim</option>
+                              <option value="false">Não</option>
+                            </select>
+                          ) : attr.field_type === 'number' ? (
+                            <input 
+                              type="number" 
+                              value={currentVal} 
+                              onChange={(e) => handleCustomAttrChange(attr.id, e.target.value)}
+                              placeholder="Digite um número"
+                              style={{ width: '100%', height: '38px', padding: '0 10px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-primary)' }}
+                            />
+                          ) : attr.field_type === 'date' ? (
+                            <input 
+                              type="date" 
+                              value={currentVal} 
+                              onChange={(e) => handleCustomAttrChange(attr.id, e.target.value)}
+                              style={{ width: '100%', height: '38px', padding: '0 10px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-primary)' }}
+                            />
+                          ) : (
+                            <input 
+                              type="text" 
+                              value={currentVal} 
+                              onChange={(e) => handleCustomAttrChange(attr.id, e.target.value)}
+                              placeholder="Preencher valor..."
+                              style={{ width: '100%', height: '38px', padding: '0 10px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-primary)' }}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
 
               <div className="form-field">
                 <label htmlFor="modal-c-notes">Observações / Notas</label>

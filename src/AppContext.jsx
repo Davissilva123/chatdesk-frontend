@@ -27,6 +27,7 @@ export function AppProvider({ children }) {
   const [teams, setTeams] = useState([]);
   const [inboxes, setInboxes] = useState([]);
   const [labels, setLabels] = useState([]);
+  const [slaPolicy, setSlaPolicy] = useState({ first_response_minutes: 30, resolution_minutes: 60 });
   
   // Filters
   const [filterStatus, setFilterStatus] = useState('open'); // open | pending | resolved | snoozed
@@ -114,6 +115,15 @@ export function AppProvider({ children }) {
       setTeams(teamsList.status === 'fulfilled' ? teamsList.value : []);
       setInboxes(inboxesList.status === 'fulfilled' ? inboxesList.value : []);
       setLabels(labelsList.status === 'fulfilled' ? labelsList.value : []);
+
+      // Fetch first available SLA policy
+      const supabase = getSupabase();
+      if (supabase) {
+        const { data: slaData } = await supabase.from('sla_policies').select('*').limit(1);
+        if (slaData && slaData.length > 0) {
+          setSlaPolicy(slaData[0]);
+        }
+      }
       setLoading(false);
     } catch (err) {
       console.error('Erro ao carregar dados iniciais:', err);
@@ -306,6 +316,7 @@ export function AppProvider({ children }) {
         setTeams([]);
         setInboxes([]);
         setLabels([]);
+        setSlaPolicy({ first_response_minutes: 30, resolution_minutes: 60 });
       }
     });
 
@@ -332,6 +343,7 @@ export function AppProvider({ children }) {
       setInboxes,
       labels,
       setLabels,
+      slaPolicy,
       filterStatus,
       setFilterStatus,
       filterAgent,
