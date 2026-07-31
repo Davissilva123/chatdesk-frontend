@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { getSupabase } from '../../supabase';
 import { showToast } from '../../utils';
-import { Plus, Trash2, X } from 'lucide-react';
+import { Plus, Trash2, X, MessageSquare, Hash } from 'lucide-react';
+import './settings.css';
 
 export default function CannedResponsesSettings() {
   const [canned, setCanned] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // Modal states
   const [modalOpen, setModalOpen] = useState(false);
   const [shortcut, setShortcut] = useState('');
   const [content, setContent] = useState('');
@@ -16,194 +15,120 @@ export default function CannedResponsesSettings() {
   const fetchCanned = async () => {
     const supabase = getSupabase();
     if (!supabase) return;
-
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('canned_responses')
-        .select('*')
-        .order('shortcut', { ascending: true });
-
+      const { data, error } = await supabase.from('canned_responses').select('*').order('shortcut', { ascending: true });
       if (error) throw error;
       setCanned(data || []);
-    } catch (err) {
-      console.error(err);
-      showToast('Erro ao buscar respostas prontas.', 'error');
-    } finally {
-      setLoading(false);
-    }
+    } catch { showToast('Erro ao buscar respostas prontas.', 'error'); }
+    finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    fetchCanned();
-  }, []);
+  useEffect(() => { fetchCanned(); }, []);
 
-  const handleDeleteCanned = async (item) => {
-    if (!window.confirm(`Deseja realmente excluir o atalho "/${item.shortcut}"?`)) {
-      return;
-    }
-
+  const handleDelete = async (item) => {
+    if (!window.confirm(`Excluir o atalho "/${item.shortcut}"?`)) return;
     const supabase = getSupabase();
     if (!supabase) return;
-
     try {
-      const { error } = await supabase
-        .from('canned_responses')
-        .delete()
-        .eq('id', item.id);
-
+      const { error } = await supabase.from('canned_responses').delete().eq('id', item.id);
       if (error) throw error;
-
-      showToast('Atalho removido com sucesso!', 'success');
-      fetchCanned();
-    } catch (err) {
-      console.error(err);
-      showToast('Erro ao remover: ' + err.message, 'error');
-    }
+      showToast('Atalho removido!', 'success'); fetchCanned();
+    } catch (err) { showToast('Erro: ' + err.message, 'error'); }
   };
 
-  const handleCreateSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const supabase = getSupabase();
     if (!supabase) return;
-
-    // Remove leading slash if typed
-    let cleanShortcut = shortcut.trim().replace(/^\//, '');
-
-    if (!cleanShortcut) {
-      showToast('Atalho inválido.', 'error');
-      return;
-    }
-
+    const cleanShortcut = shortcut.trim().replace(/^\//, '');
+    if (!cleanShortcut) { showToast('Atalho inválido.', 'error'); return; }
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('canned_responses')
-        .insert({
-          shortcut: cleanShortcut,
-          content: content.trim()
-        });
-
+      const { error } = await supabase.from('canned_responses').insert({ shortcut: cleanShortcut, content: content.trim() });
       if (error) throw error;
-
-      showToast('Resposta rápida cadastrada!', 'success');
-      setModalOpen(false);
-      setShortcut('');
-      setContent('');
-      fetchCanned();
-    } catch (err) {
-      console.error(err);
-      showToast('Erro ao criar atalho: ' + err.message, 'error');
-    } finally {
-      setSaving(false);
-    }
+      showToast('Resposta rápida criada!', 'success');
+      setModalOpen(false); setShortcut(''); setContent(''); fetchCanned();
+    } catch (err) { showToast('Erro: ' + err.message, 'error'); }
+    finally { setSaving(false); }
   };
 
   return (
-    <div>
-      <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)' }}>Respostas Prontas</h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>Configure atalhos rápidos com barra (ex: /ola) para digitar respostas frequentes</p>
+    <div className="s-root">
+      <div className="s-header">
+        <div className="s-header-text">
+          <h2>Respostas Prontas</h2>
+          <p>Configure atalhos com "/" para inserir respostas frequentes rapidamente no chat.</p>
         </div>
-        <button className="btn-resolve" onClick={() => setModalOpen(true)}>
-          <Plus size={16} /> Novo Atalho
-        </button>
+        <button className="s-btn-primary" onClick={() => setModalOpen(true)}><Plus size={15} /> Novo Atalho</button>
       </div>
 
-      <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: 'var(--shadow-lg)' }}>
-        <table className="ui-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: 'rgba(0,0,0,0.1)', borderBottom: '1px solid var(--border)' }}>
-              <th style={{ textAlign: 'left', padding: '12px 16px', color: 'var(--text-primary)', fontWeight: '600', width: '180px' }}>Atalho</th>
-              <th style={{ textAlign: 'left', padding: '12px 16px', color: 'var(--text-primary)', fontWeight: '600' }}>Conteúdo da Resposta</th>
-              <th style={{ width: '80px', textAlign: 'center', padding: '12px 16px', color: 'var(--text-primary)', fontWeight: '600' }}>Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)', fontSize: '13px' }}>Carregando...</div>
+      ) : canned.length === 0 ? (
+        <div className="s-empty-state">
+          <div className="s-empty-state-icon"><MessageSquare size={24} /></div>
+          <h3>Nenhuma resposta pronta</h3>
+          <p>Crie atalhos para agilizar o atendimento com textos frequentes.</p>
+          <button className="s-btn-primary" onClick={() => setModalOpen(true)}><Plus size={14} /> Novo Atalho</button>
+        </div>
+      ) : (
+        <div className="s-table-wrap">
+          <table className="s-table">
+            <thead>
               <tr>
-                <td colSpan="3" style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '24px' }}>
-                  Buscando atalhos...
-                </td>
+                <th style={{ width: '180px' }}>Atalho</th>
+                <th>Conteúdo da Resposta</th>
+                <th style={{ textAlign: 'center', width: '70px' }}>Ações</th>
               </tr>
-            ) : canned.length === 0 ? (
-              <tr>
-                <td colSpan="3" style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '24px' }}>
-                  Nenhuma resposta rápida cadastrada.
-                </td>
-              </tr>
-            ) : (
-              canned.map(item => (
-                <tr key={item.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
-                  <td style={{ padding: '12px 16px', fontFamily: "'JetBrains Mono', monospace", fontWeight: 600, color: 'var(--accent)' }}>
-                    /{item.shortcut}
+            </thead>
+            <tbody>
+              {canned.map(item => (
+                <tr key={item.id}>
+                  <td>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontFamily: 'monospace', fontSize: '12px', fontWeight: 700, padding: '3px 10px', borderRadius: '6px', background: 'rgba(99,102,241,.12)', color: 'var(--accent)', border: '1px solid rgba(99,102,241,.2)' }}>
+                      <Hash size={11} />/{item.shortcut}
+                    </span>
                   </td>
-                  <td style={{ padding: '12px 16px', color: 'var(--text-secondary)', maxWidth: '400px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.content}>
+                  <td style={{ color: 'var(--text-secondary)', fontSize: '13px', maxWidth: '400px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.content}>
                     {item.content}
                   </td>
-                  <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                    <button 
-                      className="toolbar-btn" 
-                      onClick={() => handleDeleteCanned(item)} 
-                      style={{ color: 'var(--danger)', background: 'transparent', border: 'none', cursor: 'pointer' }} 
-                      title="Excluir atalho"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                  <td style={{ textAlign: 'center' }}>
+                    <button className="s-icon-btn danger" onClick={() => handleDelete(item)} title="Excluir"><Trash2 size={14} /></button>
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-      {/* Add Canned Response Modal Overlay */}
       {modalOpen && (
-        <div className="modal-overlay" style={{ display: 'flex', zIndex: 1000 }}>
-          <div className="modal-card">
-            <div className="modal-header">
-              <h3 className="modal-title">Novo Atalho Rápido</h3>
-              <button className="modal-close" onClick={() => setModalOpen(false)} disabled={saving}>
-                <X size={16} />
-              </button>
+        <div className="s-overlay" onClick={e => { if (e.target === e.currentTarget && !saving) setModalOpen(false); }}>
+          <div className="s-modal">
+            <div className="s-modal-head">
+              <div className="s-modal-head-icon"><MessageSquare size={16} /></div>
+              <h3>Novo Atalho Rápido</h3>
+              <button className="s-modal-close" onClick={() => setModalOpen(false)} disabled={saving}><X size={15} /></button>
             </div>
-
-            <form onSubmit={handleCreateSubmit}>
-              <div className="form-field">
-                <label htmlFor="canned-shortcut">Atalho (Sem a barra "/")</label>
-                <input 
-                  type="text" 
-                  id="canned-shortcut" 
-                  value={shortcut}
-                  onChange={(e) => setShortcut(e.target.value)}
-                  placeholder="Ex: ola, suporte, financeiro" 
-                  required 
-                  style={{ width: '100%', height: '38px', padding: '0 10px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-primary)', fontFamily: 'monospace' }}
-                />
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', minHeight: 0 }}>
+              <div className="s-modal-body">
+                <div className="s-field">
+                  <label className="s-label" htmlFor="can-shortcut">Atalho <span style={{ fontWeight: 400, textTransform: 'none' }}>(sem a barra "/")</span> *</label>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--accent)', fontFamily: 'monospace', fontWeight: 700, fontSize: '14px', pointerEvents: 'none' }}>/</span>
+                    <input id="can-shortcut" className="s-input" type="text" value={shortcut} onChange={e => setShortcut(e.target.value)} placeholder="ola, suporte, financeiro" required style={{ paddingLeft: '22px', fontFamily: 'monospace' }} />
+                  </div>
+                </div>
+                <div className="s-field">
+                  <label className="s-label" htmlFor="can-content">Conteúdo da Mensagem *</label>
+                  <textarea id="can-content" className="s-textarea" rows="5" value={content} onChange={e => setContent(e.target.value)} placeholder="Texto completo que será inserido automaticamente ao digitar o atalho..." required />
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{content.length} caracteres</span>
+                </div>
               </div>
-
-              <div className="form-field">
-                <label htmlFor="canned-content">Conteúdo da Mensagem</label>
-                <textarea 
-                  id="canned-content" 
-                  rows="4" 
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  placeholder="Texto completo que será inserido..." 
-                  required
-                  style={{ width: '100%', padding: '10px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-primary)', resize: 'vertical' }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
-                <button type="button" className="btn-cancel" onClick={() => setModalOpen(false)} disabled={saving}>
-                  Cancelar
-                </button>
-                <button type="submit" className="btn-resolve" disabled={saving}>
-                  {saving ? 'Salvando...' : 'Cadastrar Atalho'}
-                </button>
+              <div className="s-modal-footer">
+                <button type="button" className="s-btn-cancel" onClick={() => setModalOpen(false)} disabled={saving}>Cancelar</button>
+                <button type="submit" className="s-btn-save" disabled={saving}>{saving ? 'Salvando...' : 'Criar Atalho'}</button>
               </div>
             </form>
           </div>

@@ -2,18 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../../AppContext';
 import { getSupabase } from '../../supabase';
 import { showToast } from '../../utils';
-import { Plus, Pencil, Trash2, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Tag } from 'lucide-react';
+import './settings.css';
+
+const PRESET_COLORS = [
+  '#6366f1','#8b5cf6','#ec4899','#ef4444','#f59e0b',
+  '#10b981','#0ea5e9','#14b8a6','#64748b','#f97316',
+];
 
 export default function LabelsSettings() {
   const { currentAgent } = useApp();
   const [labels, setLabels] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // Modal states
-  const [modalOpen, setModalOpen] = useState(false); // false | 'create' | 'edit'
+  const [modalOpen, setModalOpen] = useState(false);
   const [selectedLabel, setSelectedLabel] = useState(null);
-
-  // Form states
   const [name, setName] = useState('');
   const [color, setColor] = useState('#6366f1');
   const [saving, setSaving] = useState(false);
@@ -21,233 +23,146 @@ export default function LabelsSettings() {
   const fetchLabels = async () => {
     const supabase = getSupabase();
     if (!supabase || !currentAgent) return;
-
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('labels')
-        .select('*')
-        .eq('company_id', currentAgent.company_id)
-        .order('name', { ascending: true });
-
+      const { data, error } = await supabase.from('labels').select('*').eq('company_id', currentAgent.company_id).order('name', { ascending: true });
       if (error) throw error;
       setLabels(data || []);
-    } catch (err) {
-      console.error(err);
-      showToast('Erro ao buscar etiquetas.', 'error');
-    } finally {
-      setLoading(false);
-    }
+    } catch { showToast('Erro ao buscar etiquetas.', 'error'); }
+    finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    if (currentAgent) fetchLabels();
-  }, [currentAgent]);
+  useEffect(() => { if (currentAgent) fetchLabels(); }, [currentAgent]);
 
-  const handleOpenCreateModal = () => {
-    setName('');
-    setColor('#6366f1');
-    setSelectedLabel(null);
-    setModalOpen('create');
-  };
+  const handleOpenCreate = () => { setName(''); setColor('#6366f1'); setSelectedLabel(null); setModalOpen(true); };
+  const handleOpenEdit = (l) => { setSelectedLabel(l); setName(l.name || ''); setColor(l.color || '#6366f1'); setModalOpen(true); };
 
-  const handleOpenEditModal = (label) => {
-    setSelectedLabel(label);
-    setName(label.name || '');
-    setColor(label.color || '#6366f1');
-    setModalOpen('edit');
-  };
-
-  const handleDeleteLabel = async (label) => {
-    if (!window.confirm(`Deseja excluir a etiqueta "${label.name}"? Ela será removida de todas as conversas.`)) {
-      return;
-    }
-
+  const handleDelete = async (l) => {
+    if (!window.confirm(`Excluir a etiqueta "${l.name}"?`)) return;
     const supabase = getSupabase();
     if (!supabase) return;
-
     try {
-      const { error } = await supabase
-        .from('labels')
-        .delete()
-        .eq('id', label.id);
-
+      const { error } = await supabase.from('labels').delete().eq('id', l.id);
       if (error) throw error;
-
-      showToast('Etiqueta excluída com sucesso!', 'success');
-      fetchLabels();
-    } catch (err) {
-      console.error(err);
-      showToast('Erro ao remover etiqueta: ' + err.message, 'error');
-    }
+      showToast('Etiqueta excluída!', 'success'); fetchLabels();
+    } catch (err) { showToast('Erro: ' + err.message, 'error'); }
   };
 
-  const handleFormSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const supabase = getSupabase();
     if (!supabase) return;
-
     setSaving(true);
     try {
-      if (modalOpen === 'create') {
-        const { error } = await supabase
-          .from('labels')
-          .insert({
-            company_id: currentAgent?.company_id,
-            name: name.trim(),
-            color
-          });
-
+      if (!selectedLabel) {
+        const { error } = await supabase.from('labels').insert({ company_id: currentAgent?.company_id, name: name.trim(), color });
         if (error) throw error;
         showToast('Etiqueta criada!', 'success');
-      } else if (modalOpen === 'edit' && selectedLabel) {
-        const { error } = await supabase
-          .from('labels')
-          .update({
-            name: name.trim(),
-            color
-          })
-          .eq('id', selectedLabel.id);
-
+      } else {
+        const { error } = await supabase.from('labels').update({ name: name.trim(), color }).eq('id', selectedLabel.id);
         if (error) throw error;
         showToast('Etiqueta atualizada!', 'success');
       }
-
-      setModalOpen(false);
-      fetchLabels();
-    } catch (err) {
-      console.error(err);
-      showToast('Erro ao salvar etiqueta: ' + err.message, 'error');
-    } finally {
-      setSaving(false);
-    }
+      setModalOpen(false); fetchLabels();
+    } catch (err) { showToast('Erro: ' + err.message, 'error'); }
+    finally { setSaving(false); }
   };
 
   return (
-    <div>
-      <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)' }}>Etiquetas (Tags)</h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>Classifique conversas para organizar fluxos de atendimento</p>
+    <div className="s-root">
+      <div className="s-header">
+        <div className="s-header-text">
+          <h2>Etiquetas</h2>
+          <p>Classifique e organize conversas com etiquetas coloridas.</p>
         </div>
-        <button className="btn-resolve" onClick={handleOpenCreateModal}>
-          <Plus size={16} /> Nova Etiqueta
-        </button>
+        <button className="s-btn-primary" onClick={handleOpenCreate}><Plus size={15} /> Nova Etiqueta</button>
       </div>
 
-      <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: 'var(--shadow-lg)' }}>
-        <table className="ui-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: 'rgba(0,0,0,0.1)', borderBottom: '1px solid var(--border)' }}>
-              <th style={{ textAlign: 'left', padding: '12px 16px', color: 'var(--text-primary)', fontWeight: '600', width: '80px' }}>Cor</th>
-              <th style={{ textAlign: 'left', padding: '12px 16px', color: 'var(--text-primary)', fontWeight: '600' }}>Nome da Etiqueta</th>
-              <th style={{ textAlign: 'left', padding: '12px 16px', color: 'var(--text-primary)', fontWeight: '600' }}>Criada em</th>
-              <th style={{ width: '120px', textAlign: 'center', padding: '12px 16px', color: 'var(--text-primary)', fontWeight: '600' }}>Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)', fontSize: '13px' }}>Carregando etiquetas...</div>
+      ) : labels.length === 0 ? (
+        <div className="s-empty-state">
+          <div className="s-empty-state-icon"><Tag size={24} /></div>
+          <h3>Nenhuma etiqueta criada</h3>
+          <p>Crie etiquetas para classificar e filtrar conversas.</p>
+          <button className="s-btn-primary" onClick={handleOpenCreate}><Plus size={14} /> Nova Etiqueta</button>
+        </div>
+      ) : (
+        <div className="s-table-wrap">
+          <table className="s-table">
+            <thead>
               <tr>
-                <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '24px' }}>
-                  Buscando etiquetas...
-                </td>
+                <th>Etiqueta</th>
+                <th>Criada em</th>
+                <th style={{ textAlign: 'center' }}>Ações</th>
               </tr>
-            ) : labels.length === 0 ? (
-              <tr>
-                <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '24px' }}>
-                  Nenhuma etiqueta cadastrada.
-                </td>
-              </tr>
-            ) : (
-              labels.map(l => (
-                <tr key={l.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
-                  <td style={{ padding: '12px 16px' }}>
-                    <span style={{ background: l.color, width: '20px', height: '20px', borderRadius: '50%', display: 'inline-block', border: '1px solid var(--border)' }}></span>
+            </thead>
+            <tbody>
+              {labels.map(l => (
+                <tr key={l.id}>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: l.color, flexShrink: 0, boxShadow: `0 0 8px ${l.color}66` }} />
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, padding: '3px 10px', borderRadius: '20px', background: `${l.color}22`, color: l.color, border: `1px solid ${l.color}44` }}>
+                        {l.name}
+                      </span>
+                    </div>
                   </td>
-                  <td style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--text-primary)' }}>{l.name}</td>
-                  <td style={{ padding: '12px 16px', color: 'var(--text-secondary)' }}>
-                    {new Date(l.created_at).toLocaleDateString('pt-BR')}
-                  </td>
-                  <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                      <button 
-                        className="toolbar-btn" 
-                        onClick={() => handleOpenEditModal(l)} 
-                        style={{ color: 'var(--text-secondary)', background: 'transparent', border: 'none', cursor: 'pointer' }} 
-                        title="Editar etiqueta"
-                      >
-                        <Pencil size={16} />
-                      </button>
-                      <button 
-                        className="toolbar-btn" 
-                        onClick={() => handleDeleteLabel(l)} 
-                        style={{ color: 'var(--danger)', background: 'transparent', border: 'none', cursor: 'pointer' }} 
-                        title="Excluir etiqueta"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                  <td style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>{new Date(l.created_at).toLocaleDateString('pt-BR')}</td>
+                  <td style={{ textAlign: 'center' }}>
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: '4px' }}>
+                      <button className="s-icon-btn edit" onClick={() => handleOpenEdit(l)} title="Editar"><Pencil size={14} /></button>
+                      <button className="s-icon-btn danger" onClick={() => handleDelete(l)} title="Excluir"><Trash2 size={14} /></button>
                     </div>
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-      {/* Add / Edit Modal Overlay */}
       {modalOpen && (
-        <div className="modal-overlay" style={{ display: 'flex', zIndex: 1000 }}>
-          <div className="modal-card">
-            <div className="modal-header">
-              <h3 className="modal-title">
-                {modalOpen === 'create' ? 'Nova Etiqueta' : 'Editar Etiqueta'}
-              </h3>
-              <button className="modal-close" onClick={() => setModalOpen(false)} disabled={saving}>
-                <X size={16} />
-              </button>
+        <div className="s-overlay" onClick={e => { if (e.target === e.currentTarget && !saving) setModalOpen(false); }}>
+          <div className="s-modal">
+            <div className="s-modal-head">
+              <div className="s-modal-head-icon"><Tag size={16} /></div>
+              <h3>{selectedLabel ? 'Editar Etiqueta' : 'Nova Etiqueta'}</h3>
+              <button className="s-modal-close" onClick={() => setModalOpen(false)} disabled={saving}><X size={15} /></button>
             </div>
-
-            <form onSubmit={handleFormSubmit}>
-              <div className="form-field">
-                <label htmlFor="label-name">Nome da Etiqueta</label>
-                <input 
-                  type="text" 
-                  id="label-name" 
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Ex: Urgente, Suporte N2" 
-                  required 
-                  style={{ width: '100%', height: '38px', padding: '0 10px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-primary)' }}
-                />
-              </div>
-
-              <div className="form-field">
-                <label htmlFor="label-color">Cor de Exibição</label>
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                  <input 
-                    type="color" 
-                    id="label-color" 
-                    value={color}
-                    onChange={(e) => setColor(e.target.value)}
-                    style={{ width: '50px', height: '38px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'transparent', cursor: 'pointer', padding: 0 }}
-                  />
-                  <input 
-                    type="text" 
-                    value={color}
-                    onChange={(e) => setColor(e.target.value)}
-                    style={{ width: '100px', height: '38px', padding: '0 10px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-primary)', fontFamily: 'monospace' }}
-                  />
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', minHeight: 0 }}>
+              <div className="s-modal-body">
+                <div className="s-field">
+                  <label className="s-label" htmlFor="label-name">Nome da Etiqueta *</label>
+                  <input id="label-name" className="s-input" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Urgente, Suporte N2" required />
+                </div>
+                <div className="s-field">
+                  <label className="s-label">Cor de Exibição</label>
+                  {/* Presets */}
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                    {PRESET_COLORS.map(c => (
+                      <button key={c} type="button" onClick={() => setColor(c)} style={{ width: '28px', height: '28px', borderRadius: '50%', background: c, border: color === c ? `3px solid white` : `2px solid transparent`, cursor: 'pointer', boxShadow: color === c ? `0 0 0 2px ${c}` : 'none', transition: 'all .15s' }} />
+                    ))}
+                  </div>
+                  <div className="s-color-row">
+                    <div className="s-color-swatch"><input type="color" value={color} onChange={e => setColor(e.target.value)} /></div>
+                    <input className="s-input" type="text" value={color} onChange={e => setColor(e.target.value)} style={{ fontFamily: 'monospace', flex: 1 }} />
+                    <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: color, border: '1px solid var(--border)', flexShrink: 0 }} />
+                  </div>
+                </div>
+                {/* Preview */}
+                <div className="s-field">
+                  <label className="s-label">Pré-visualização</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px', background: 'var(--bg-input)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 700, padding: '3px 10px', borderRadius: '20px', background: `${color}22`, color: color, border: `1px solid ${color}44` }}>
+                      {name || 'Nome da etiqueta'}
+                    </span>
+                  </div>
                 </div>
               </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
-                <button type="button" className="btn-cancel" onClick={() => setModalOpen(false)} disabled={saving}>
-                  Cancelar
-                </button>
-                <button type="submit" className="btn-resolve" disabled={saving}>
-                  {saving ? 'Salvando...' : 'Salvar Etiqueta'}
-                </button>
+              <div className="s-modal-footer">
+                <button type="button" className="s-btn-cancel" onClick={() => setModalOpen(false)} disabled={saving}>Cancelar</button>
+                <button type="submit" className="s-btn-save" disabled={saving}>{saving ? 'Salvando...' : 'Salvar Etiqueta'}</button>
               </div>
             </form>
           </div>
