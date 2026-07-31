@@ -96,6 +96,9 @@ const css = `
   max-height: 90vh; display: flex; flex-direction: column;
   box-shadow: 0 24px 64px rgba(0,0,0,.5);
 }
+.aut-modal-form {
+  display: flex; flex-direction: column; flex: 1; overflow: hidden; min-height: 0;
+}
 .aut-modal-head {
   display: flex; align-items: center; gap: 12px; padding: 20px 24px;
   border-bottom: 1px solid var(--border); flex-shrink: 0;
@@ -150,12 +153,11 @@ const css = `
 /* ── Section box ── */
 .aut-section {
   border: 1px solid var(--border); border-radius: var(--radius-lg);
-  overflow: hidden;
 }
 .aut-section-header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 16px; background: rgba(0,0,0,.12);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border); border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 .aut-section-title { display: flex; align-items: center; gap: 8px; }
 .aut-section-title span { font-size: 13px; font-weight: 600; color: var(--text-primary); }
@@ -536,7 +538,7 @@ export default function AutomationsSettings() {
               </div>
 
               {/* Modal Body */}
-              <form onSubmit={handleFormSubmit} style={{ display: 'contents' }}>
+              <form onSubmit={handleFormSubmit} className="aut-modal-form">
                 <div className="aut-modal-body">
 
                   {/* Name + Description */}
