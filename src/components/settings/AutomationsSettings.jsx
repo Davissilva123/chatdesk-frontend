@@ -439,71 +439,69 @@ export default function AutomationsSettings() {
                             <option value="not_equal_to">Diferente de</option>
                           </select>
 
-                          <div>
-                            {cond.attribute === 'inbox_id' ? (
-                              <select 
-                                value={cond.value}
-                                onChange={(e) => handleConditionChange(index, 'value', e.target.value)}
-                                required
-                                style={{ width: '100%', height: '34px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-primary)', fontSize: '12px' }}
-                              >
-                                <option value="">Selecione o canal...</option>
-                                {inboxes.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-                              </select>
-                            ) : cond.attribute === 'status' ? (
-                              <select 
-                                value={cond.value}
-                                onChange={(e) => handleConditionChange(index, 'value', e.target.value)}
-                                required
-                                style={{ width: '100%', height: '34px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-primary)', fontSize: '12px' }}
-                              >
-                                <option value="">Selecione o status...</option>
-                                <option value="open">Aberta</option>
-                                <option value="pending">Pendente</option>
-                                <option value="resolved">Resolvida</option>
-                                <option value="snoozed">Suspensa</option>
-                              </select>
-                            ) : cond.attribute === 'priority' ? (
-                              <select 
-                                value={cond.value}
-                                onChange={(e) => handleConditionChange(index, 'value', e.target.value)}
-                                required
-                                style={{ width: '100%', height: '34px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-primary)', fontSize: '12px' }}
-                              >
-                                <option value="">Selecione a prioridade...</option>
-                                <option value="none">Nenhuma</option>
-                                <option value="low">Baixa</option>
-                                <option value="medium">Média</option>
-                                <option value="high">Alta</option>
-                                <option value="urgent">Urgente</option>
-                              </select>
-                            ) : cond.attribute === 'message_type' ? (
-                              <select 
-                                value={cond.value}
-                                onChange={(e) => handleConditionChange(index, 'value', e.target.value)}
-                                required
-                                style={{ width: '100%', height: '34px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-primary)', fontSize: '12px' }}
-                              >
-                                <option value="">Selecione o tipo...</option>
-                                <option value="incoming">Incoming (Recebida)</option>
-                                <option value="outgoing">Outgoing (Enviada)</option>
-                              </select>
-                            ) : (
-                              <input 
-                                type="text" 
-                                value={cond.value}
-                                onChange={(e) => handleConditionChange(index, 'value', e.target.value)}
-                                placeholder="Digite o valor..." 
-                                required
-                                style={{ width: '100%', height: '34px', padding: '0 10px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-primary)', fontSize: '12px' }}
-                              />
-                            )}
-                          </div>
+                          {cond.attribute === 'inbox_id' ? (
+                            <select 
+                              value={cond.value}
+                              onChange={(e) => handleConditionChange(index, 'value', e.target.value)}
+                              required
+                              style={{ width: '100%', height: '34px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-primary)', fontSize: '12px' }}
+                            >
+                              <option value="">Selecione o canal...</option>
+                              {inboxes.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                            </select>
+                          ) : cond.attribute === 'status' ? (
+                            <select 
+                              value={cond.value}
+                              onChange={(e) => handleConditionChange(index, 'value', e.target.value)}
+                              required
+                              style={{ width: '100%', height: '34px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-primary)', fontSize: '12px' }}
+                            >
+                              <option value="">Selecione o status...</option>
+                              <option value="open">Aberta</option>
+                              <option value="pending">Pendente</option>
+                              <option value="resolved">Resolvida</option>
+                              <option value="snoozed">Suspensa</option>
+                            </select>
+                          ) : cond.attribute === 'priority' ? (
+                            <select 
+                              value={cond.value}
+                              onChange={(e) => handleConditionChange(index, 'value', e.target.value)}
+                              required
+                              style={{ width: '100%', height: '34px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-primary)', fontSize: '12px' }}
+                            >
+                              <option value="">Selecione a prioridade...</option>
+                              <option value="none">Nenhuma</option>
+                              <option value="low">Baixa</option>
+                              <option value="medium">Média</option>
+                              <option value="high">Alta</option>
+                              <option value="urgent">Urgente</option>
+                            </select>
+                          ) : cond.attribute === 'message_type' ? (
+                            <select 
+                              value={cond.value}
+                              onChange={(e) => handleConditionChange(index, 'value', e.target.value)}
+                              required
+                              style={{ width: '100%', height: '34px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-primary)', fontSize: '12px' }}
+                            >
+                              <option value="">Selecione o tipo...</option>
+                              <option value="incoming">Incoming (Recebida)</option>
+                              <option value="outgoing">Outgoing (Enviada)</option>
+                            </select>
+                          ) : (
+                            <input 
+                              type="text" 
+                              value={cond.value}
+                              onChange={(e) => handleConditionChange(index, 'value', e.target.value)}
+                              placeholder="Digite o valor..." 
+                              required
+                              style={{ width: '100%', height: '34px', padding: '0 10px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-primary)', fontSize: '12px' }}
+                            />
+                          )}
 
                           <button 
                             type="button" 
                             onClick={() => handleRemoveCondition(index)}
-                            style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '4px' }}
                           >
                             <X size={16} />
                           </button>
@@ -534,11 +532,11 @@ export default function AutomationsSettings() {
                   ) : (
                     actions.map((act, index) => (
                       <div key={index} style={{ background: '#0d0f14', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                           <select 
                             value={act.type}
                             onChange={(e) => handleActionChange(index, 'type', e.target.value)}
-                            style={{ width: '200px', height: '34px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-primary)', fontSize: '12px' }}
+                            style={{ flex: 1, height: '34px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-primary)', fontSize: '12px' }}
                           >
                             <option value="assign_agent">Atribuir Agente (Assign to Agent)</option>
                             <option value="assign_team">Atribuir Equipe (Assign a Team)</option>
@@ -553,7 +551,7 @@ export default function AutomationsSettings() {
                           <button 
                             type="button" 
                             onClick={() => handleRemoveAction(index)}
-                            style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '4px', flexShrink: 0 }}
                           >
                             <X size={16} />
                           </button>
