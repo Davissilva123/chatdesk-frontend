@@ -2384,6 +2384,46 @@ input:focus, select:focus, textarea:focus {
   pointer-events: all;
   transform: translateY(0);
 }
+
+/* ─── QUICK REACTION PICKER ────────────────────────────────────── */
+.quick-reaction-picker {
+  position: absolute;
+  top: -40px; /* appear above the action buttons */
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 8px 12px;
+  box-shadow: var(--shadow-lg);
+  z-index: 20;
+}
+.quick-reaction-picker.left {
+  left: 0;
+  transform: translateX(0);
+}
+.quick-reaction-picker.right {
+  left: auto;
+  right: 0;
+  transform: translateX(0);
+}
+.quick-reaction-emoji {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  transition: transform 0.2s var(--ease-spring);
+  padding: 0;
+  margin: 0;
+  line-height: 1;
+}
+.quick-reaction-emoji:hover {
+  transform: scale(1.3);
+}
+
 .msg-action-btn {
   background: transparent;
   border: none;
