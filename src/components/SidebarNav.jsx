@@ -29,7 +29,8 @@ export default function SidebarNav({ onOpenSearch }) {
     activeView, 
     setActiveView, 
     theme, 
-    setTheme 
+    setTheme,
+    inboxes
   } = useApp();
 
   const [showDropdown, setShowDropdown] = useState(false);
@@ -37,6 +38,9 @@ export default function SidebarNav({ onOpenSearch }) {
   const [autoOffline, setAutoOffline] = useState(
     localStorage.getItem('auto-offline-enabled') === 'true'
   );
+
+  // CSAT só aparece se ao menos uma inbox tiver csat_enabled != false
+  const csatVisible = inboxes.length === 0 || inboxes.some(i => i.csat_enabled !== false);
 
   const avatarUrl = currentAgent?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(currentAgent?.name || 'agent')}`;
   const status = currentAgent?.status || 'offline';
@@ -183,14 +187,16 @@ export default function SidebarNav({ onOpenSearch }) {
                     <GitMerge size={20} />
                   </button>
 
-                  <button
-                    onClick={() => setActiveView('csat')}
-                    className={`nav-item ${activeView === 'csat' ? 'active' : ''}`}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}
-                    title="CSAT — Satisfação"
-                  >
-                    <Star size={20} />
-                  </button>
+                  {csatVisible && (
+                    <button
+                      onClick={() => setActiveView('csat')}
+                      className={`nav-item ${activeView === 'csat' ? 'active' : ''}`}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}
+                      title="CSAT — Satisfação"
+                    >
+                      <Star size={20} />
+                    </button>
+                  )}
 
                   <button 
                     onClick={() => setActiveView('settings')} 

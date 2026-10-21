@@ -113,6 +113,9 @@ export default function ChatWindow() {
   const [showTransfer, setShowTransfer] = useState(false);
   const [isDragOver, setIsDragOver]     = useState(false);
 
+  // ── CSAT Modal ───────────────────────────────────────────────────
+  const [csatConversation, setCsatConversation] = useState(null);
+
   // ── Reply/Quote ──────────────────────────────────────────────────
   const [replyTo, setReplyTo]           = useState(null);
 
@@ -340,7 +343,63 @@ export default function ChatWindow() {
     await updateConversationStatus(activeConversation.id, status);
     logAuditAction('STATUS_CHANGE', { new_status: status }, activeConversation.id);
     showToast(`Conversa marcada como ${status === 'resolved' ? 'resolvida' : status}!`, 'success');
-    if (status === 'resolved' || status === 'pending' || status === 'snoozed') setActiveConversation(null);
+
+    // Ao resolver: enviar mensagem de CSAT ao cliente via WhatsApp (se habilitado na inbox)
+    if (status === 'resolved' && inbox.csat_enabled !== false) {
+      try {
+        const csatText =
+          `Olá! Obrigado pelo contato. 😊\n` +
+          `Como você avalia o nosso atendimento?\n\n` +
+          `1️⃣ — Ruim\n` +
+          `2️⃣ — Regular\n` +
+          `3️⃣ — Ótimo\n\n` +
+          `Responda apenas com o número da sua escolha.`;
+
+        // Registrar no banco como mensagem de solicitação de CSAT
+        // Usa company_id do agente logado (mesma fonte do RLS) para evitar erro de FK
+        const supabase = getSupabase();
+        let csatMsgId = null;
+        if (supabase) {
+          const companyId = currentAgent?.company_id || activeConversation.company_id || null;
+          const { data: csatMsg, error: csatInsertErr } = await supabase.from('messages').insert({
+            conversation_id: activeConversation.id,
+            sender_type: 'agent',
+            sender_id: null,
+            content: csatText,
+            message_type: 'csat_request',
+            status: 'sent',
+            company_id: companyId,
+          }).select('id').single();
+          if (csatInsertErr) {
+            console.error('[CSAT] Erro ao inserir mensagem no banco:', csatInsertErr);
+          } else {
+            csatMsgId = csatMsg?.id || null;
+          }
+        }
+
+        if (!inbox.wa_session_id) {
+          console.warn('[CSAT] Inbox sem wa_session_id — mensagem salva no banco mas não enviada pelo WhatsApp.');
+        } else {
+          // Enviar via WhatsApp ao cliente, passando o messageId para evitar duplicata no banco
+          await sendWaMessage({
+            sessionId: inbox.wa_session_id,
+            phone: contact.phone,
+            type: 'text',
+            content: csatText,
+            conversationId: activeConversation.id,
+            messageId: csatMsgId,
+          });
+          console.log('[CSAT] Mensagem de avaliação enviada ao cliente:', contact.phone);
+        }
+      } catch (err) {
+        console.error('[CSAT] Erro ao enviar mensagem de avaliação ao cliente:', err);
+        showToast('Aviso: não foi possível enviar a mensagem de avaliação ao cliente.', 'warning');
+      }
+    }
+
+    if (status === 'resolved' || status === 'pending' || status === 'snoozed') {
+      setActiveConversation(null);
+    }
     fetchConversationsList();
   };
 
@@ -1322,6 +1381,7 @@ export default function ChatWindow() {
           }}
         />
       )}
+
     </section>
   );
 }

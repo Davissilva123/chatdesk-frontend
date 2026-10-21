@@ -6,6 +6,7 @@ import {
   getQRCode,
   getConnectionStatus
 } from '../../whatsapp';
+
 import { showToast } from '../../utils';
 import { useApp } from '../../AppContext';
 import {
@@ -73,6 +74,8 @@ export default function InboxesSettings() {
   const [qrImageSrc, setQrImageSrc] = useState('');
   const [qrLoading, setQrLoading] = useState(true);
   const qrPollRef = useRef(null);
+  const realtimeChannelRef = useRef(null);
+  const statusPollRef = useRef(null);
 
   const fetchInboxes = async () => {
     const supabase = getSupabase();
@@ -87,6 +90,70 @@ export default function InboxesSettings() {
   };
 
   useEffect(() => { fetchInboxes(); }, []);
+
+  // ── Realtime: escuta mudanças na tabela inboxes em tempo real ─────
+  useEffect(() => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    const channel = supabase
+      .channel('inboxes-status-realtime')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'inboxes' }, (payload) => {
+        const updated = payload.new;
+        setInboxes(prev => prev.map(inbox =>
+          inbox.id === updated.id ? { ...inbox, ...updated } : inbox
+        ));
+      })
+      .subscribe();
+
+    realtimeChannelRef.current = channel;
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
+  // ── Polling: verifica status real da API a cada 30s ───────────────
+  useEffect(() => {
+    const pollStatuses = async () => {
+      const supabase = getSupabase();
+      if (!supabase) return;
+
+      // Busca lista atualizada do banco
+      const { data: currentInboxes } = await supabase.from('inboxes').select('id, wa_session_id, is_connected').order('name');
+      if (!currentInboxes) return;
+
+      for (const inbox of currentInboxes) {
+        if (!inbox.wa_session_id) continue;
+        try {
+          const statusRes = await getConnectionStatus(inbox.wa_session_id);
+          const isReallyConnected = statusRes.status === 'connected';
+
+          // Se o status real divergir do que está no Supabase, corrige
+          if (isReallyConnected !== inbox.is_connected) {
+            await supabase
+              .from('inboxes')
+              .update({ is_connected: isReallyConnected })
+              .eq('id', inbox.id);
+            // O realtime listener acima vai atualizar o estado local automaticamente
+            console.log(`[InboxesSettings] Corrigido status da inbox ${inbox.wa_session_id}: ${inbox.is_connected} → ${isReallyConnected}`);
+          }
+        } catch (err) {
+          // API inacessível — marcar como desconectado se estava como conectado
+          if (inbox.is_connected) {
+            await supabase
+              .from('inboxes')
+              .update({ is_connected: false })
+              .eq('id', inbox.id);
+            console.warn(`[InboxesSettings] API inacessível para ${inbox.wa_session_id} — marcando como desconectado.`);
+          }
+        }
+      }
+    };
+
+    // Roda imediatamente ao abrir a tela
+    pollStatuses();
+    // Depois a cada 30 segundos
+    statusPollRef.current = setInterval(pollStatuses, 30000);
+    return () => { clearInterval(statusPollRef.current); };
+  }, []);
 
   const handleOpenCreate = () => {
     const generated = 'inbox-' + Math.random().toString(36).substring(2, 8) + Date.now().toString().slice(-4);
@@ -373,6 +440,7 @@ function InboxConfigModal({ inbox, onClose, onCompleted }) {
   const [ignoreGroups, setIgnoreGroups] = useState(inbox.ignore_groups !== false);
   const [signatureEnabled, setSignatureEnabled] = useState(inbox.signature_enabled || false);
   const [syncContacts, setSyncContacts] = useState(inbox.sync_contacts || false);
+  const [csatEnabled, setCsatEnabled] = useState(inbox.csat_enabled !== false);
 
   const [autoAssignment, setAutoAssignment] = useState(inbox.auto_assignment || false);
   const [allAgents, setAllAgents] = useState([]);
@@ -426,7 +494,8 @@ function InboxConfigModal({ inbox, onClose, onCompleted }) {
         name: name.trim(), greeting_enabled: greetingEnabled,
         greeting_message: greetingEnabled ? greetingMessage.trim() : null,
         ignore_audios: ignoreAudios, ignore_audios_message: ignoreAudios ? ignoreAudiosMessage.trim() : null,
-        ignore_groups: ignoreGroups, signature_enabled: signatureEnabled, sync_contacts: syncContacts
+        ignore_groups: ignoreGroups, signature_enabled: signatureEnabled, sync_contacts: syncContacts,
+        csat_enabled: csatEnabled
       }).eq('id', inbox.id);
       if (error) throw error;
       showToast('Configurações salvas!', 'success'); onCompleted();
@@ -618,6 +687,22 @@ function InboxConfigModal({ inbox, onClose, onCompleted }) {
                   <Toggle id="cfg-sync" checked={syncContacts} onChange={e => setSyncContacts(e.target.checked)} />
                   <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{syncContacts ? 'Sincronização ativada' : 'Desativada'}</span>
                 </div>
+              </div>
+
+              {/* CSAT */}
+              <div className="s-field">
+                <label className="s-label">Solicitar avaliação CSAT ao resolver conversa?</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <Toggle id="cfg-csat" checked={csatEnabled} onChange={e => setCsatEnabled(e.target.checked)} />
+                  <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                    {csatEnabled ? 'Sim — modal de avaliação aparecerá ao resolver' : 'Não — nenhuma avaliação será solicitada'}
+                  </span>
+                </div>
+                {!csatEnabled && (
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    O botão CSAT no painel lateral será ocultado se todas as caixas tiverem esta opção desativada.
+                  </span>
+                )}
               </div>
 
               <div className="s-modal-footer" style={{ padding: '0', marginTop: '4px' }}>

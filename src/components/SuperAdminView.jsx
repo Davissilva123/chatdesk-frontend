@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { getSupabase, getAdminSupabase } from "../supabase";
 import { showToast } from "../utils";
+import { disconnectWaSession } from "../whatsapp";
 import {
   Building2, UserCog, Wallet, TrendingUp, AlertTriangle, CheckCircle2,
   Clock, XCircle, RefreshCw, Trash2, ShieldCheck, ChevronRight, ChevronLeft,
@@ -431,7 +432,24 @@ export default function SuperAdminView({ isStandalone=false }) {
   // ── AUDIT ─────────────────────────────────────────────
   const logAudit = async (action, targetId=null, details={}) => {
     const sb = getAdminSupabase(); if(!sb||!currentAgent) return;
-    try { await sb.from("audit_logs").insert([{ agent_id:currentAgent.id||currentAgent.user_id,action,target_id:targetId,details }]); } catch(e){}
+    try {
+      const isValidUuid = typeof targetId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
+      const { error } = await sb.from("audit_logs").insert([{
+        agent_id: currentAgent.id || currentAgent.user_id,
+        action,
+        entity_type: "company",
+        entity_id: isValidUuid ? targetId : null,
+        metadata: { ...details, target_id: targetId }
+      }]);
+      if (error) {
+        await sb.from("audit_logs").insert([{
+          agent_id: currentAgent.id || currentAgent.user_id,
+          action,
+          target_id: targetId,
+          details
+        }]);
+      }
+    } catch(e){}
   };
 
   // ── FETCH FUNCTIONS ───────────────────────────────────
@@ -653,9 +671,177 @@ export default function SuperAdminView({ isStandalone=false }) {
   };
 
   const handleDelete = async(company) => {
-    showConfirm({ title:"⚠️ Excluir empresa permanentemente",message:`Isto vai APAGAR "${company.name}" e TODOS os dados. Esta ação NÃO pode ser desfeita!`,confirmLabel:"Sim, excluir tudo",confirmColor:"var(--danger)",icon:Trash2,
-      onConfirm:async()=>{ closeConfirm(); const sb=getAdminSupabase(); if(!sb) return;
-        try{ await sb.from("companies").delete().eq("id",company.id); await logAudit("DELETE_COMPANY",company.id,{company_name:company.name}); showToast("Empresa excluída.","success"); setSelectedCompany(null); fetchCompanies(); }catch(e){ showToast("Erro: "+e.message,"error"); }
+    if (!company?.id) return;
+
+    // Proteção: não permitir que o Superadmin apague a própria empresa ativa onde seu usuário está logado
+    const isCurrentAgentCompany = currentAgent && (
+      currentAgent.company_id === company.id || 
+      (users || []).some(u => (u.id === currentAgent.id || u.email === currentAgent.email) && u.company_id === company.id)
+    );
+
+    if (isCurrentAgentCompany) {
+      showToast("Você não pode excluir a empresa vinculada à sua própria conta ativa de Superadmin. Troque de empresa antes de excluí-la.", "error");
+      return;
+    }
+
+    showConfirm({ 
+      title: "⚠️ Excluir empresa permanentemente",
+      message: `Isto vai APAGAR "${company.name}" e TODOS os seus agentes, caixas de entrada, conversas, mensagens e dados permanentemente. Esta ação NÃO pode ser desfeita!`,
+      confirmLabel: "Sim, excluir tudo",
+      confirmColor: "var(--danger)",
+      icon: Trash2,
+      onConfirm: async () => {
+        closeConfirm();
+        const sb = getAdminSupabase();
+        if (!sb) {
+          showToast("Cliente do banco não inicializado.", "error");
+          return;
+        }
+
+        const companyId = company.id;
+        showToast("Excluindo empresa e todos os dados associados...", "info");
+
+        try {
+          // 1. Obter registros filhos necessários (agentes, caixas, conversas, times, contatos)
+          const { data: companyAgents } = await sb.from("agents").select("id, user_id").eq("company_id", companyId);
+          const agentIds = (companyAgents || []).map(a => a.id);
+          const userIds = (companyAgents || []).map(a => a.user_id).filter(Boolean);
+
+          const { data: companyInboxes } = await sb.from("inboxes").select("id, wa_session_id").eq("company_id", companyId);
+          const inboxIds = (companyInboxes || []).map(i => i.id);
+
+          const { data: companyConvs } = await sb.from("conversations").select("id").eq("company_id", companyId);
+          const convIds = (companyConvs || []).map(c => c.id);
+
+          const { data: companyTeams } = await sb.from("teams").select("id").eq("company_id", companyId);
+          const teamIds = (companyTeams || []).map(t => t.id);
+
+          const { data: companyContacts } = await sb.from("contacts").select("id").eq("company_id", companyId);
+          const contactIds = (companyContacts || []).map(c => c.id);
+
+          // 2. Desconectar sessões ativas do WhatsApp se houver
+          for (const ib of (companyInboxes || [])) {
+            if (ib.wa_session_id) {
+              try { await disconnectWaSession(ib.wa_session_id); } catch(e) {}
+            }
+          }
+
+          // 3. Excluir mensagens e etiquetas de conversas
+          if (companyId) {
+            await sb.from("messages").delete().eq("company_id", companyId);
+          }
+          if (convIds.length > 0) {
+            await sb.from("messages").delete().in("conversation_id", convIds);
+            await sb.from("conversation_labels").delete().in("conversation_id", convIds);
+          }
+
+          // 4. Excluir valores de campos customizados vinculados a conversas ou contatos
+          const entityIds = [...convIds, ...contactIds];
+          if (entityIds.length > 0) {
+            try { await sb.from("custom_attribute_values").delete().in("entity_id", entityIds); } catch(e) {}
+          }
+
+          // 5. Excluir conversas e contatos
+          if (companyId) {
+            await sb.from("conversations").delete().eq("company_id", companyId);
+            await sb.from("contacts").delete().eq("company_id", companyId);
+          }
+
+          // 6. Excluir fluxos de chatbot, sessões e vínculos de caixas
+          if (inboxIds.length > 0) {
+            try { await sb.from("chatbot_sessions").delete().in("inbox_id", inboxIds); } catch(e) {}
+            try { await sb.from("chatbot_flows").delete().in("inbox_id", inboxIds); } catch(e) {}
+            try { await sb.from("inbox_agents").delete().in("inbox_id", inboxIds); } catch(e) {}
+          }
+          if (agentIds.length > 0) {
+            try { await sb.from("inbox_agents").delete().in("agent_id", agentIds); } catch(e) {}
+          }
+
+          // 7. Excluir campanhas e caixas
+          if (companyId) {
+            try { await sb.from("campaigns").delete().eq("company_id", companyId); } catch(e) {}
+          }
+          if (inboxIds.length > 0) {
+            try { await sb.from("campaigns").delete().in("inbox_id", inboxIds); } catch(e) {}
+          }
+          if (companyId) {
+            const { error: ibErr } = await sb.from("inboxes").delete().eq("company_id", companyId);
+            if (ibErr) console.warn("Erro ao excluir inboxes:", ibErr.message);
+          }
+
+          // 8. Excluir times e membros de times
+          if (teamIds.length > 0) {
+            try { await sb.from("team_agents").delete().in("team_id", teamIds); } catch(e) {}
+          }
+          if (agentIds.length > 0) {
+            try { await sb.from("team_agents").delete().in("agent_id", agentIds); } catch(e) {}
+          }
+          if (companyId) {
+            const { error: tmErr } = await sb.from("teams").delete().eq("company_id", companyId);
+            if (tmErr) console.warn("Erro ao excluir teams:", tmErr.message);
+          }
+
+          // 9. Excluir etiquetas (labels) e respostas prontas
+          if (companyId) {
+            await sb.from("labels").delete().eq("company_id", companyId);
+            try { await sb.from("canned_responses").delete().eq("company_id", companyId); } catch(e) {}
+          }
+          if (agentIds.length > 0) {
+            try { await sb.from("canned_responses").delete().in("created_by", agentIds); } catch(e) {}
+            try { await sb.from("macros").delete().in("created_by", agentIds); } catch(e) {}
+          }
+
+          // 10. Excluir tickets de suporte, pagamentos, domínios, afiliados e relatórios
+          try { await sb.from("support_tickets").delete().eq("company_id", companyId); } catch(e) {}
+          if (agentIds.length > 0) {
+            try { await sb.from("support_tickets").delete().in("created_by", agentIds); } catch(e) {}
+          }
+          try { await sb.from("payment_history").delete().eq("company_id", companyId); } catch(e) {}
+          try { await sb.from("custom_domains").delete().eq("company_id", companyId); } catch(e) {}
+          try { await sb.from("affiliate_referrals").delete().eq("company_id", companyId); } catch(e) {}
+          try { await sb.from("broadcast_campaigns").delete().eq("recipient_company_id", companyId); } catch(e) {}
+          if (agentIds.length > 0) {
+            try { await sb.from("broadcast_campaigns").delete().in("created_by", agentIds); } catch(e) {}
+          }
+          try { await sb.from("usage_logs").delete().eq("company_id", companyId); } catch(e) {}
+          try { await sb.from("financial_transactions").delete().eq("company_id", companyId); } catch(e) {}
+          try { await sb.from("nps_responses").delete().eq("company_id", companyId); } catch(e) {}
+          try { await sb.from("sales_pipeline").delete().eq("company_id", companyId); } catch(e) {}
+
+          // 11. Excluir logs de auditoria dos agentes ou da empresa
+          if (agentIds.length > 0) {
+            try { await sb.from("audit_logs").delete().in("agent_id", agentIds); } catch(e) {}
+          }
+          try { await sb.from("audit_logs").delete().eq("entity_id", companyId); } catch(e) {}
+          try { await sb.from("audit_logs").delete().eq("target_id", companyId); } catch(e) {}
+
+          // 12. Excluir agentes da empresa
+          if (companyId) {
+            const { error: agDelErr } = await sb.from("agents").delete().eq("company_id", companyId);
+            if (agDelErr) throw new Error("Erro ao excluir agentes: " + agDelErr.message);
+          }
+
+          // 13. Excluir usuários de autenticação no Supabase Auth
+          for (const uid of userIds) {
+            try {
+              await sb.auth.admin.deleteUser(uid);
+            } catch(e) {
+              console.warn("Aviso ao remover usuário do Auth:", uid, e);
+            }
+          }
+
+          // 14. Excluir a empresa definitivamente
+          const { error: compDelErr } = await sb.from("companies").delete().eq("id", companyId);
+          if (compDelErr) throw new Error("Erro ao excluir empresa: " + compDelErr.message);
+
+          await logAudit("DELETE_COMPANY", null, { company_name: company.name, deleted_company_id: companyId });
+          showToast(`Empresa "${company.name}" excluída permanentemente com sucesso!`, "success");
+          setSelectedCompany(null);
+          fetchCompanies();
+        } catch (err) {
+          console.error("Erro na exclusão da empresa:", err);
+          showToast("Erro ao excluir empresa: " + (err.message || err), "error");
+        }
       }
     });
   };
@@ -2073,8 +2259,8 @@ export default function SuperAdminView({ isStandalone=false }) {
                     <tr key={log.id} className="sa-row-hover" style={{ borderBottom:"1px solid var(--border-light)" }}>
                       <td style={{ padding:"12px 16px",fontSize:"12px",color:"var(--text-secondary)",whiteSpace:"nowrap" }}>{new Date(log.created_at).toLocaleString("pt-BR")}</td>
                       <td style={{ padding:"12px 16px" }}><span style={{ fontSize:"11px",fontWeight:700,padding:"4px 10px",borderRadius:"6px",background:isDestructive?"rgba(239,68,68,.12)":"rgba(99,102,241,.12)",color:isDestructive?"var(--danger)":"var(--accent)",fontFamily:"monospace" }}>{log.action}</span></td>
-                      <td style={{ padding:"12px 16px",fontSize:"11px",color:"var(--text-muted)",fontFamily:"monospace" }}>{log.target_id?log.target_id.substring(0,10)+"...":"N/A"}</td>
-                      <td style={{ padding:"12px 16px",fontSize:"12px",color:"var(--text-secondary)",maxWidth:"300px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{log.details?JSON.stringify(log.details):"—"}</td>
+                      <td style={{ padding:"12px 16px",fontSize:"11px",color:"var(--text-muted)",fontFamily:"monospace" }}>{(log.target_id||log.entity_id||log.metadata?.target_id||log.metadata?.deleted_company_id)?(log.target_id||log.entity_id||log.metadata?.target_id||log.metadata?.deleted_company_id).substring(0,10)+"...":"N/A"}</td>
+                      <td style={{ padding:"12px 16px",fontSize:"12px",color:"var(--text-secondary)",maxWidth:"300px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{log.details?JSON.stringify(log.details):(log.metadata?JSON.stringify(log.metadata):"—")}</td>
                     </tr>
                   )})}
                   </tbody>
