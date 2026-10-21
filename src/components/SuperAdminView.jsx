@@ -603,14 +603,65 @@ export default function SuperAdminView({ isStandalone=false }) {
 
   // ── HANDLERS ──────────────────────────────────────────
   const handleCreateCompany = async(form) => {
-    const sb=getAdminSupabase(); if(!sb) return;
-    try{
-      const {error}=await sb.from("companies").insert([{ name:form.name,email:form.email,phone:form.phone||null,plan_id:form.plan_id||null,subscription_status:"trial" }]);
-      if(error) throw error;
-      await logAudit("CREATE_COMPANY",null,{company_name:form.name});
-      showToast(`Empresa "${form.name}" criada!`,"success");
-      setShowCreateCompanyModal(false); fetchCompanies();
-    }catch(e){ showToast("Erro: "+e.message,"error"); }
+    const sb = getAdminSupabase(); if(!sb) return;
+    try {
+      const name = form.name?.trim();
+      if (!name) {
+        showToast("O nome da empresa é obrigatório.", "error");
+        return;
+      }
+
+      const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+      let payload = {
+        name,
+        email: form.email ? form.email.trim() : null,
+        phone: form.phone ? form.phone.trim() : null,
+        plan_id: form.plan_id || null,
+        subscription_status: "trial",
+        subscription_ends_at: trialEndsAt
+      };
+
+      let { data, error } = await sb.from("companies").insert([payload]).select();
+
+      // Fallback gracioso se as colunas email/phone ainda não existirem no Supabase
+      if (error && (error.message?.includes("email") || error.message?.includes("phone") || error.code === "PGRST204")) {
+        const fallbackPayload = {
+          name,
+          plan_id: form.plan_id || null,
+          subscription_status: "trial",
+          subscription_ends_at: trialEndsAt
+        };
+        const res = await sb.from("companies").insert([fallbackPayload]).select();
+        error = res.error;
+        data = res.data;
+      }
+
+      if (error) throw error;
+      const createdCompany = data && data[0];
+
+      // Se um e-mail foi fornecido, vincular um agente administrador inicial para essa empresa
+      if (createdCompany && form.email) {
+        try {
+          await sb.from("agents").insert([{
+            company_id: createdCompany.id,
+            name: name + " (Admin)",
+            email: form.email.trim(),
+            role: "admin",
+            status: "offline"
+          }]);
+        } catch(agErr) {
+          console.warn("Aviso ao vincular agente para a nova empresa:", agErr);
+        }
+      }
+
+      await logAudit("CREATE_COMPANY", createdCompany?.id || null, { company_name: name });
+      showToast(`Empresa "${name}" criada com sucesso!`, "success");
+      setShowCreateCompanyModal(false);
+      fetchCompanies();
+    } catch(e) {
+      showToast("Erro: " + (e.message || e), "error");
+    }
   };
 
   const handleLoginAs = async(company) => {
